@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { TextInput, Button, Text, useTheme, Surface, HelperText } from 'react-native-paper';
+import { TextInput, Button, Text, useTheme, Surface, HelperText, Divider } from 'react-native-paper';
 import { useRouter, Stack, useLocalSearchParams } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -200,6 +200,26 @@ export default function AddBookScreen() {
                                 <Text variant="labelSmall">1 Month</Text>
                             </View>
                         </TouchableOpacity>
+                    </View>
+
+                    <Divider style={{ marginVertical: 16 }} />
+
+                    {/* Dynamic Goal Preview */}
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.secondaryContainer, padding: 12, borderRadius: 12 }}>
+                        <MaterialCommunityIcons name="speedometer" size={24} color={theme.colors.onSecondaryContainer} style={{ marginRight: 12 }} />
+                        <View>
+                            <Text variant="labelMedium" style={{ color: theme.colors.onSecondaryContainer }}>Required Pace</Text>
+                            <Text variant="titleLarge" style={{ color: theme.colors.onSecondaryContainer, fontWeight: 'bold' }}>
+                                {(() => {
+                                    if (!totalUnits || isNaN(parseInt(totalUnits))) return '0 ch/day';
+                                    const diffTime = targetDate.getTime() - startDate.getTime();
+                                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                    if (diffDays <= 0) return 'Finish today!';
+                                    const rate = (parseInt(totalUnits) / diffDays).toFixed(1);
+                                    return `${rate} ch/day`;
+                                })()}
+                            </Text>
+                        </View>
                     </View>
                 </Surface>
 

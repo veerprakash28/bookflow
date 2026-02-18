@@ -201,6 +201,11 @@ export default function BookDetailScreen() {
                                 >
                                     {daysLeft > 0 ? `${daysLeft} days left` : isOverdue ? `${Math.abs(daysLeft)} days overdue` : 'Due today'}
                                 </Chip>
+                                <Chip icon="speedometer" style={styles.chip} textStyle={{ fontSize: 10 }}>
+                                    {daysLeft > 0
+                                        ? `${Math.ceil((book.totalUnits - book.unitsCompleted) / daysLeft * 10) / 10} ch/day`
+                                        : 'N/A'}
+                                </Chip>
                             </View>
                         </View>
                     </View>
