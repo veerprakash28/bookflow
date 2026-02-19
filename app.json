@@ -13,7 +13,8 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.BookFlow"
     },
     "android": {
       "adaptiveIcon": {
@@ -39,7 +40,18 @@
         {
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to scan book pages."
         }
-      ]
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "compileSdkVersion": 35,
+            "targetSdkVersion": 35,
+            "buildToolsVersion": "35.0.0"
+          }
+        }
+      ],
+      "./plugins/withTextRecognitionFix.js"
     ],
     "extra": {
       "router": {},
