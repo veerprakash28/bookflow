@@ -1,4 +1,4 @@
-import { useSQLiteContext } from 'expo-sqlite';
+import { useDatabase } from './useDatabase';
 import { useState, useCallback, useEffect } from 'react';
 
 export type Book = {
@@ -14,7 +14,7 @@ export type Book = {
 };
 
 export function useBooks() {
-    const db = useSQLiteContext();
+    const db = useDatabase();
     const [books, setBooks] = useState<Book[]>([]);
 
     const refreshBooks = useCallback(async () => {

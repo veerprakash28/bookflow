@@ -24,7 +24,10 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
     CREATE TABLE IF NOT EXISTS stats (
       id TEXT PRIMARY KEY NOT NULL DEFAULT 'user_main',
       totalPoints INTEGER DEFAULT 0,
-      booksRead INTEGER DEFAULT 0
+      booksRead INTEGER DEFAULT 0,
+      currentStreak INTEGER DEFAULT 0,
+      longestStreak INTEGER DEFAULT 0,
+      lastReadDate TEXT
     );
 
     CREATE TABLE IF NOT EXISTS user_settings (
@@ -33,8 +36,19 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
       title TEXT DEFAULT 'Reading Enthusiast'
     );
 
-    INSERT OR IGNORE INTO stats (id, totalPoints, booksRead) VALUES ('user_main', 0, 0);
+    INSERT OR IGNORE INTO stats (id, totalPoints, booksRead, currentStreak, longestStreak, lastReadDate) VALUES ('user_main', 0, 0, 0, 0, NULL);
     INSERT OR IGNORE INTO user_settings (id, name, title) VALUES ('user_main', 'Guest User', 'Reading Enthusiast');
+
+    -- Migrations for existing databases
+    try {
+        await db.execAsync("ALTER TABLE stats ADD COLUMN currentStreak INTEGER DEFAULT 0;");
+    } catch (e) { /* Column likely exists */ }
+    try {
+        await db.execAsync("ALTER TABLE stats ADD COLUMN longestStreak INTEGER DEFAULT 0;");
+    } catch (e) { /* Column likely exists */ }
+    try {
+        await db.execAsync("ALTER TABLE stats ADD COLUMN lastReadDate TEXT;");
+    } catch (e) { /* Column likely exists */ }
   `);
 
   // Future migrations can go here

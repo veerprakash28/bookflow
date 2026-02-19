@@ -8,7 +8,7 @@ import { recognizeText } from '../../services/OCR';
 import * as Speech from 'expo-speech';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useSQLiteContext } from 'expo-sqlite';
+import { useDatabase } from '../../hooks/useDatabase';
 import { useStats } from '../../hooks/useStats';
 
 export default function BookDetailScreen() {
@@ -18,7 +18,7 @@ export default function BookDetailScreen() {
     const navigation = useNavigation();
     const { books, refreshBooks } = useBooks();
     const { addPoints, updateBooksRead } = useStats(); // Updated hook
-    const db = useSQLiteContext();
+    const db = useDatabase();
 
     const [book, setBook] = useState<Book | null>(null);
     const [scannedText, setScannedText] = useState('');

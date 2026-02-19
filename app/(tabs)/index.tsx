@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useBooks, Book } from '../../hooks/useBooks';
 import { useCallback, useState } from 'react';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useSQLiteContext } from 'expo-sqlite';
+import { useDatabase } from '../../hooks/useDatabase';
 
 // Enable LayoutAnimation for Android
 if (Platform.OS === 'android') {
@@ -18,7 +18,7 @@ export default function LibraryScreen() {
     const theme = useTheme();
     const router = useRouter();
     const { books, refreshBooks } = useBooks();
-    const db = useSQLiteContext();
+    const db = useDatabase();
 
     const [visible, setVisible] = useState(false);
     const [selectedBook, setSelectedBook] = useState<Book | null>(null);

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { TextInput, Button, Text, useTheme, Surface, HelperText, Divider } from 'react-native-paper';
+import { TextInput, Button, Text, useTheme, Surface, HelperText, Divider, Chip } from 'react-native-paper';
 import { useRouter, Stack, useLocalSearchParams } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
+import { useDatabase } from '../hooks/useDatabase';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,7 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function AddBookScreen() {
     const router = useRouter();
     const theme = useTheme();
-    const db = useSQLiteContext();
+    const db = useDatabase();
 
     const { id } = useLocalSearchParams(); // Check if editing
     const isEditing = !!id;
@@ -113,8 +113,6 @@ export default function AddBookScreen() {
             />
             <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
 
-                {/* Removed Custom Header - Native Header is enough */}
-
                 <Surface style={styles.card} elevation={2}>
                     <Text variant="titleMedium" style={{ marginBottom: 16, color: theme.colors.primary, fontWeight: 'bold' }}>
                         {isEditing ? 'Edit Details' : 'Book Details'}
@@ -164,12 +162,13 @@ export default function AddBookScreen() {
                 </Surface>
 
                 <Surface style={styles.card} elevation={2}>
-                    <Text variant="titleMedium" style={{ marginBottom: 12, color: theme.colors.primary, fontWeight: 'bold' }}>
-                        Set Your Pace
+                    {/* Quick Select & Goal Date Combined */}
+                    <Text variant="titleMedium" style={{ marginBottom: 16, color: theme.colors.primary, fontWeight: 'bold' }}>
+                        Reading Schedule
                     </Text>
 
                     <DateSelector
-                        label="Start Date"
+                        label="Start Reading"
                         date={startDate}
                         onPress={() => setShowStartDate(true)}
                     />
@@ -177,49 +176,44 @@ export default function AddBookScreen() {
                     <View style={styles.spacer} />
 
                     <DateSelector
-                        label="Goal Date"
+                        label="Finish By"
                         date={targetDate}
                         onPress={() => setShowTargetDate(true)}
                     />
 
-                    {/* Quick Select Chips */}
-                    <View style={styles.quickSelect}>
-                        <Text variant="bodySmall" style={{ marginRight: 8, color: theme.colors.outline }}>Quick Goal:</Text>
-                        <TouchableOpacity onPress={() => setQuickDate(7)}>
-                            <View style={[styles.miniChip, { borderColor: theme.colors.outline }]}>
-                                <Text variant="labelSmall">7 Days</Text>
-                            </View>
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={() => setQuickDate(14)}>
-                            <View style={[styles.miniChip, { borderColor: theme.colors.outline }]}>
-                                <Text variant="labelSmall">2 Weeks</Text>
-                            </View>
-                        </TouchableOpacity>
-                        <TouchableOpacity onPress={() => setQuickDate(30)}>
-                            <View style={[styles.miniChip, { borderColor: theme.colors.outline }]}>
-                                <Text variant="labelSmall">1 Month</Text>
-                            </View>
-                        </TouchableOpacity>
+                    {/* Quick Options */}
+                    <View style={styles.quickSelectContainer}>
+                        {[7, 14, 30].map((days) => (
+                            <Chip
+                                key={days}
+                                mode="outlined"
+                                onPress={() => setQuickDate(days)}
+                                style={styles.quickChip}
+                                textStyle={{ fontSize: 11 }}
+                                icon="lightning-bolt-outline"
+                            >
+                                {days === 30 ? '1 Month' : `${days} Days`}
+                            </Chip>
+                        ))}
                     </View>
 
                     <Divider style={{ marginVertical: 16 }} />
 
-                    {/* Dynamic Goal Preview */}
-                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.secondaryContainer, padding: 12, borderRadius: 12 }}>
-                        <MaterialCommunityIcons name="speedometer" size={24} color={theme.colors.onSecondaryContainer} style={{ marginRight: 12 }} />
-                        <View>
-                            <Text variant="labelMedium" style={{ color: theme.colors.onSecondaryContainer }}>Required Pace</Text>
-                            <Text variant="titleLarge" style={{ color: theme.colors.onSecondaryContainer, fontWeight: 'bold' }}>
+                    {/* Subtle Pace Indicator */}
+                    <View style={styles.paceContainer}>
+                        <MaterialCommunityIcons name="speedometer" size={20} color={theme.colors.secondary} style={{ marginRight: 8 }} />
+                        <Text variant="bodyLarge" style={{ color: theme.colors.onSurfaceVariant }}>
+                            Pace: <Text style={{ fontWeight: 'bold', color: theme.colors.primary }}>
                                 {(() => {
-                                    if (!totalUnits || isNaN(parseInt(totalUnits))) return '0 ch/day';
+                                    if (!totalUnits || isNaN(parseInt(totalUnits))) return '0';
                                     const diffTime = targetDate.getTime() - startDate.getTime();
                                     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                                    if (diffDays <= 0) return 'Finish today!';
+                                    if (diffDays <= 0) return '∞';
                                     const rate = (parseInt(totalUnits) / diffDays).toFixed(1);
-                                    return `${rate} ch/day`;
+                                    return rate;
                                 })()}
-                            </Text>
-                        </View>
+                            </Text> ch/day
+                        </Text>
                     </View>
                 </Surface>
 
@@ -298,18 +292,26 @@ const styles = StyleSheet.create({
         marginTop: 4,
         borderRadius: 8,
     },
-    quickSelect: {
+    quickSelectContainer: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: 12,
+        marginBottom: 4,
+    },
+    quickChip: {
+        borderRadius: 16,
+        flex: 1,
+        marginHorizontal: 4,
+    },
+    paceContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginTop: 12,
-        justifyContent: 'flex-end',
+        justifyContent: 'center',
+        paddingVertical: 8,
+        backgroundColor: '#f5f5f5',
+        borderRadius: 8,
     },
-    miniChip: {
-        borderWidth: 1,
-        borderRadius: 12,
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        marginLeft: 8,
-        backgroundColor: 'transparent'
+    paceIcon: {
+        display: 'none', // Removed unused style
     }
 });

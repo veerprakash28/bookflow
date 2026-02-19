@@ -24,8 +24,6 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
-        "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
       "package": "com.anonymous.BookFlow"
@@ -42,6 +40,12 @@
           "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to scan book pages."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "6f380dd2-1766-4c76-aa06-0978414b9594"
+      }
+    }
   }
 }

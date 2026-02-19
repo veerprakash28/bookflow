@@ -8,7 +8,7 @@ import { migrateDbIfNeeded } from '../services/Database';
 import { useEffect, useState } from 'react';
 import { registerForPushNotificationsAsync, scheduleDailyReminder } from '../services/Notifications';
 import AnimatedSplashScreen from '../components/AnimatedSplashScreen';
-import { View } from 'react-native';
+import { View, Platform } from 'react-native';
 
 export default function RootLayout() {
     const [appReady, setAppReady] = useState(false);
@@ -21,6 +21,20 @@ export default function RootLayout() {
         return (
             <PaperProvider theme={theme}>
                 <AnimatedSplashScreen onFinish={() => setAppReady(true)} />
+            </PaperProvider>
+        );
+    }
+
+    if (Platform.OS === 'web') {
+        return (
+            <PaperProvider theme={theme}>
+                <StatusBar style="auto" />
+                <Stack>
+                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                    <Stack.Screen name="add-book" options={{ presentation: 'modal', title: 'Add Book' }} />
+                    <Stack.Screen name="book/[id]" options={{ headerShown: true, title: '' }} />
+                    <Stack.Screen name="+not-found" />
+                </Stack>
             </PaperProvider>
         );
     }
