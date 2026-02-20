@@ -10,15 +10,19 @@ const withTextRecognitionFix = (config) => {
         }
 
         const fix = `
-// Fix for react-native-text-recognition (Requires SDK 30+)
-ext {
-    TextRecognition_compileSdkVersion = 35
-    TextRecognition_targetSdkVersion = 35
-    TextRecognition_buildToolsVersion = "35.0.0"
-}
+    ext {
+        TextRecognition_compileSdkVersion = 35
+        TextRecognition_targetSdkVersion = 35
+        TextRecognition_buildToolsVersion = "35.0.0"
+    }
 `;
 
-        config.modResults.contents = buildGradle + fix;
+        // Inject into the top of the buildscript block
+        config.modResults.contents = buildGradle.replace(
+            /buildscript\s*{/,
+            `buildscript {${fix}`
+        );
+
         return config;
     });
 };
