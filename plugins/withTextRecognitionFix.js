@@ -1,10 +1,12 @@
-const { withProjectBuildGradle } = require('@expo/config-plugins');
+const { withProjectBuildGradle, withDangerousMod } = require('@expo/config-plugins');
+const fs = require('fs');
+const path = require('path');
 
 const withTextRecognitionFix = (config) => {
-    return withProjectBuildGradle(config, async (config) => {
+    // Step 1: Fix compileSdkVersion in root build.gradle
+    config = withProjectBuildGradle(config, async (config) => {
         const buildGradle = config.modResults.contents;
 
-        // Check if we've already applied the fix
         if (buildGradle.includes('TextRecognition_compileSdkVersion')) {
             return config;
         }
@@ -16,8 +18,6 @@ const withTextRecognitionFix = (config) => {
         TextRecognition_buildToolsVersion = "35.0.0"
     }
 `;
-
-        // Inject into the top of the buildscript block
         config.modResults.contents = buildGradle.replace(
             /buildscript\s*{/,
             `buildscript {${fix}`
@@ -25,6 +25,53 @@ const withTextRecognitionFix = (config) => {
 
         return config;
     });
+
+    // Step 2: Patch the library's own build.gradle to use standalone ML Kit
+    // (fixes "Failed resolution of: Lcom/google/mlkit/vision/common/internal/Detector")
+    config = withDangerousMod(config, [
+        'android',
+        async (config) => {
+            const libraryBuildGradle = path.join(
+                config.modRequest.projectRoot,
+                'node_modules/react-native-text-recognition/android/build.gradle'
+            );
+
+            let contents = fs.readFileSync(libraryBuildGradle, 'utf8');
+
+            // Swap the old play-services GMS version for the standalone ML Kit artifact
+            contents = contents.replace(
+                "implementation 'com.google.android.gms:play-services-mlkit-text-recognition:16.3.0'",
+                "implementation 'com.google.mlkit:text-recognition:16.0.0'"
+            );
+
+            fs.writeFileSync(libraryBuildGradle, contents);
+            return config;
+        },
+    ]);
+
+    // Step 3: Patch the library Java source to use the correct TextRecognizerOptions package
+    // The standalone mlkit:text-recognition:16.0.0 puts TextRecognizerOptions in .latin subpackage
+    config = withDangerousMod(config, [
+        'android',
+        async (config) => {
+            const javaSource = path.join(
+                config.modRequest.projectRoot,
+                'node_modules/react-native-text-recognition/android/src/main/java/com/reactnativetextrecognition/TextRecognitionModule.java'
+            );
+
+            let contents = fs.readFileSync(javaSource, 'utf8');
+
+            contents = contents.replace(
+                'import com.google.mlkit.vision.text.TextRecognizerOptions;',
+                'import com.google.mlkit.vision.text.latin.TextRecognizerOptions;'
+            );
+
+            fs.writeFileSync(javaSource, contents);
+            return config;
+        },
+    ]);
+
+    return config;
 };
 
 module.exports = withTextRecognitionFix;

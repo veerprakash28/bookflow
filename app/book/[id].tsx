@@ -47,8 +47,9 @@ export default function BookDetailScreen() {
         }
 
         const result = await ImagePicker.launchCameraAsync({
-            mediaTypes: 'Images',
+            mediaTypes: 'images',
             allowsEditing: true,
+            aspect: [3, 4], // Constrain crop aspect to fix Android UI button bleed
             quality: 1,
         });
 
