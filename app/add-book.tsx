@@ -1,18 +1,19 @@
-import { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { TextInput, Button, Text, useTheme, Surface, HelperText, Divider, Chip } from 'react-native-paper';
+import { useState, useEffect, useRef } from 'react';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Image, FlatList } from 'react-native';
+import { TextInput, Button, Text, useTheme, Surface, HelperText, Divider, Chip, ActivityIndicator } from 'react-native-paper';
 import { useRouter, Stack, useLocalSearchParams } from 'expo-router';
 import { useDatabase } from '../hooks/useDatabase';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { searchBooks, findGutenbergBook, BookSearchResult } from '../services/BookSearch';
 
 export default function AddBookScreen() {
     const router = useRouter();
     const theme = useTheme();
     const db = useDatabase();
 
-    const { id } = useLocalSearchParams(); // Check if editing
+    const { id } = useLocalSearchParams();
     const isEditing = !!id;
 
     const [title, setTitle] = useState('');
@@ -24,10 +25,17 @@ export default function AddBookScreen() {
     const [showTargetDate, setShowTargetDate] = useState(false);
     const [loading, setLoading] = useState(false);
 
-    // Load book data if editing
+    // Search state
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<BookSearchResult[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [selectedBook, setSelectedBook] = useState<BookSearchResult | null>(null);
+    const [gutenbergFound, setGutenbergFound] = useState(false);
+    const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
     useEffect(() => {
         if (id) {
-            db.getFirstAsync('SELECT * FROM books WHERE id = ?', [id]).then((book: any) => {
+            db.getFirstAsync('SELECT * FROM books WHERE id = ?', [String(id)]).then((book: any) => {
                 if (book) {
                     setTitle(book.title);
                     setAuthor(book.author);
@@ -39,17 +47,48 @@ export default function AddBookScreen() {
         }
     }, [id]);
 
-    // Calculate dynamic target date for quick selection (e.g. +7 days, +30 days)
+    // Debounced search
+    useEffect(() => {
+        if (searchQuery.length < 3) {
+            setSearchResults([]);
+            return;
+        }
+        if (searchTimer.current) clearTimeout(searchTimer.current);
+        searchTimer.current = setTimeout(async () => {
+            setIsSearching(true);
+            const results = await searchBooks(searchQuery);
+            setSearchResults(results);
+            setIsSearching(false);
+        }, 500);
+    }, [searchQuery]);
+
+    const handleSelectBook = async (book: BookSearchResult) => {
+        setSelectedBook(book);
+        setTitle(book.title);
+        setAuthor(book.author);
+        setSearchQuery('');
+        setSearchResults([]);
+        setGutenbergFound(false);
+
+        // Check Gutenberg in background
+        const gutenberg = await findGutenbergBook(book.title, book.author);
+        if (gutenberg) {
+            setGutenbergFound(true);
+            setSelectedBook(prev => prev ? {
+                ...prev,
+                gutenbergId: gutenberg.id,
+            } : prev);
+        }
+    };
+
     const setQuickDate = (days: number) => {
-        const date = new Date(startDate); // Based on start date
+        const date = new Date(startDate);
         date.setDate(date.getDate() + days);
         setTargetDate(date);
     };
 
     const handleSave = async () => {
-        if (!title.trim() || !totalUnits.trim()) {
-            return;
-        }
+        if (!title.trim() || !totalUnits.trim()) return;
 
         setLoading(true);
         try {
@@ -59,19 +98,28 @@ export default function AddBookScreen() {
                     [title, author, parseInt(totalUnits), startDate.toISOString(), targetDate.toISOString(), id]
                 );
             } else {
+                const gutenberg = selectedBook?.gutenbergId
+                    ? await findGutenbergBook(selectedBook.title, selectedBook.author)
+                    : null;
+
+                const bookId = Date.now().toString();
                 await db.runAsync(
-                    `INSERT INTO books (id, title, author, coverUri, totalUnits, unitsCompleted, status, startDate, targetEndDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    `INSERT INTO books (id, title, author, coverUri, coverUrl, gutenbergId, gutenbergTextUrl, totalUnits, unitsCompleted, status, startDate, targetEndDate)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [
-                        Date.now().toString(),
+                        bookId,
                         title,
                         author,
-                        null,
+                        selectedBook?.coverUrl ?? null,
+                        selectedBook?.coverUrl ?? null,
+                        gutenberg?.id ?? null,
+                        gutenberg ? `https://www.gutenberg.org/cache/epub/${gutenberg.id}/pg${gutenberg.id}.txt` : null,
                         parseInt(totalUnits),
                         0,
                         'Reading',
                         startDate.toISOString(),
-                        targetDate.toISOString()
-                    ]
+                        targetDate.toISOString(),
+                    ] as any
                 );
             }
             router.back();
@@ -83,7 +131,7 @@ export default function AddBookScreen() {
         }
     };
 
-    const DateSelector = ({ label, date, onPress }: { label: string, date: Date, onPress: () => void }) => (
+    const DateSelector = ({ label, date, onPress }: { label: string; date: Date; onPress: () => void }) => (
         <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
             <View style={[styles.dateRow, { borderColor: theme.colors.outline }]}>
                 <View style={styles.dateLabelRow}>
@@ -113,6 +161,79 @@ export default function AddBookScreen() {
             />
             <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
 
+                {/* Book Search Section */}
+                {!isEditing && (
+                    <Surface style={styles.card} elevation={2}>
+                        <Text variant="titleMedium" style={{ marginBottom: 12, color: theme.colors.primary, fontWeight: 'bold' }}>
+                            🔍 Search for a Book
+                        </Text>
+                        <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12 }}>
+                            Search to auto-fill details. Classic books will have digital reading available.
+                        </Text>
+
+                        <TextInput
+                            label="Search by title or author..."
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            mode="outlined"
+                            style={{ marginBottom: 4 }}
+                            right={isSearching
+                                ? <TextInput.Icon icon={() => <ActivityIndicator size={16} />} />
+                                : <TextInput.Icon icon="magnify" color={theme.colors.primary} />
+                            }
+                        />
+
+                        {/* Search Results */}
+                        {searchResults.length > 0 && (
+                            <View style={[styles.resultsContainer, { borderColor: theme.colors.outline }]}>
+                                {searchResults.map((book, idx) => (
+                                    <TouchableOpacity
+                                        key={book.googleBooksId}
+                                        onPress={() => handleSelectBook(book)}
+                                        activeOpacity={0.7}
+                                    >
+                                        <View style={[styles.resultItem, idx < searchResults.length - 1 && { borderBottomWidth: 1, borderBottomColor: '#f0f0f0' }]}>
+                                            {book.coverUrl ? (
+                                                <Image source={{ uri: book.coverUrl }} style={styles.resultCover} />
+                                            ) : (
+                                                <View style={[styles.resultCoverPlaceholder, { backgroundColor: theme.colors.primaryContainer }]}>
+                                                    <MaterialCommunityIcons name="book" size={20} color={theme.colors.primary} />
+                                                </View>
+                                            )}
+                                            <View style={styles.resultText}>
+                                                <Text variant="bodyMedium" style={{ fontWeight: 'bold' }} numberOfLines={1}>{book.title}</Text>
+                                                <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }} numberOfLines={1}>{book.author}</Text>
+                                            </View>
+                                            <MaterialCommunityIcons name="chevron-right" size={20} color={theme.colors.outline} />
+                                        </View>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        )}
+
+                        {/* Selected book preview */}
+                        {selectedBook && (
+                            <View style={[styles.selectedBook, { backgroundColor: theme.colors.primaryContainer }]}>
+                                {selectedBook.coverUrl && (
+                                    <Image source={{ uri: selectedBook.coverUrl }} style={styles.selectedCover} />
+                                )}
+                                <View style={{ flex: 1 }}>
+                                    <Text variant="bodyMedium" style={{ fontWeight: 'bold', color: theme.colors.onPrimaryContainer }}>{selectedBook.title}</Text>
+                                    <Text variant="bodySmall" style={{ color: theme.colors.onPrimaryContainer }}>{selectedBook.author}</Text>
+                                    {gutenbergFound && (
+                                        <Chip icon="book-open-variant" style={{ marginTop: 6, backgroundColor: '#E8F5E9', alignSelf: 'flex-start' }} textStyle={{ fontSize: 11, color: '#2E7D32' }}>
+                                            Digital reading available ✓
+                                        </Chip>
+                                    )}
+                                </View>
+                                <TouchableOpacity onPress={() => { setSelectedBook(null); setGutenbergFound(false); }}>
+                                    <MaterialCommunityIcons name="close-circle" size={22} color={theme.colors.primary} />
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                    </Surface>
+                )}
+
                 <Surface style={styles.card} elevation={2}>
                     <Text variant="titleMedium" style={{ marginBottom: 16, color: theme.colors.primary, fontWeight: 'bold' }}>
                         {isEditing ? 'Edit Details' : 'Book Details'}
@@ -130,9 +251,7 @@ export default function AddBookScreen() {
                         right={<TextInput.Icon icon="book-outline" color={theme.colors.outline} />}
                     />
                     {title.length === 0 && (
-                        <HelperText type="error" visible={!title}>
-                            Title is required
-                        </HelperText>
+                        <HelperText type="error" visible={!title}>Title is required</HelperText>
                     )}
 
                     <TextInput
@@ -162,26 +281,14 @@ export default function AddBookScreen() {
                 </Surface>
 
                 <Surface style={styles.card} elevation={2}>
-                    {/* Quick Select & Goal Date Combined */}
                     <Text variant="titleMedium" style={{ marginBottom: 16, color: theme.colors.primary, fontWeight: 'bold' }}>
                         Reading Schedule
                     </Text>
 
-                    <DateSelector
-                        label="Start Reading"
-                        date={startDate}
-                        onPress={() => setShowStartDate(true)}
-                    />
-
+                    <DateSelector label="Start Reading" date={startDate} onPress={() => setShowStartDate(true)} />
                     <View style={styles.spacer} />
+                    <DateSelector label="Finish By" date={targetDate} onPress={() => setShowTargetDate(true)} />
 
-                    <DateSelector
-                        label="Finish By"
-                        date={targetDate}
-                        onPress={() => setShowTargetDate(true)}
-                    />
-
-                    {/* Quick Options */}
                     <View style={styles.quickSelectContainer}>
                         {[7, 14, 30].map((days) => (
                             <Chip
@@ -199,25 +306,21 @@ export default function AddBookScreen() {
 
                     <Divider style={{ marginVertical: 16 }} />
 
-                    {/* Subtle Pace Indicator */}
                     <View style={styles.paceContainer}>
                         <MaterialCommunityIcons name="speedometer" size={20} color={theme.colors.secondary} style={{ marginRight: 8 }} />
                         <Text variant="bodyLarge" style={{ color: theme.colors.onSurfaceVariant }}>
                             Pace: <Text style={{ fontWeight: 'bold', color: theme.colors.primary }}>
                                 {(() => {
                                     if (!totalUnits || isNaN(parseInt(totalUnits))) return '0';
-                                    const diffTime = targetDate.getTime() - startDate.getTime();
-                                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                    const diffDays = Math.ceil((targetDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
                                     if (diffDays <= 0) return '∞';
-                                    const rate = (parseInt(totalUnits) / diffDays).toFixed(1);
-                                    return rate;
+                                    return (parseInt(totalUnits) / diffDays).toFixed(1);
                                 })()}
                             </Text> ch/day
                         </Text>
                     </View>
                 </Surface>
 
-                {/* Date Pickers (Hidden) */}
                 {(showStartDate || showTargetDate) && (
                     <DateTimePicker
                         value={showStartDate ? startDate : targetDate}
@@ -251,67 +354,23 @@ export default function AddBookScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    scroll: {
-        padding: 16,
-        paddingTop: 20,
-    },
-    card: {
-        padding: 20,
-        borderRadius: 16,
-        backgroundColor: 'white',
-        marginBottom: 16,
-    },
-    input: {
-        marginBottom: 12,
-        backgroundColor: 'transparent',
-    },
-    dateRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingVertical: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0',
-    },
-    dateLabelRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    dateValue: {
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 6,
-    },
-    spacer: {
-        height: 8,
-    },
-    saveButton: {
-        marginTop: 4,
-        borderRadius: 8,
-    },
-    quickSelectContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginTop: 12,
-        marginBottom: 4,
-    },
-    quickChip: {
-        borderRadius: 16,
-        flex: 1,
-        marginHorizontal: 4,
-    },
-    paceContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 8,
-        backgroundColor: '#f5f5f5',
-        borderRadius: 8,
-    },
-    paceIcon: {
-        display: 'none', // Removed unused style
-    }
+    container: { flex: 1 },
+    scroll: { padding: 16, paddingTop: 20 },
+    card: { padding: 20, borderRadius: 16, backgroundColor: 'white', marginBottom: 16 },
+    input: { marginBottom: 12, backgroundColor: 'transparent' },
+    dateRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
+    dateLabelRow: { flexDirection: 'row', alignItems: 'center' },
+    dateValue: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
+    spacer: { height: 8 },
+    saveButton: { marginTop: 4, borderRadius: 8 },
+    quickSelectContainer: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12, marginBottom: 4 },
+    quickChip: { borderRadius: 16, flex: 1, marginHorizontal: 4 },
+    paceContainer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 8, backgroundColor: '#f5f5f5', borderRadius: 8 },
+    resultsContainer: { borderWidth: 1, borderRadius: 8, marginTop: 4, overflow: 'hidden' },
+    resultItem: { flexDirection: 'row', alignItems: 'center', padding: 12, backgroundColor: 'white' },
+    resultCover: { width: 36, height: 50, borderRadius: 4, marginRight: 12 },
+    resultCoverPlaceholder: { width: 36, height: 50, borderRadius: 4, marginRight: 12, justifyContent: 'center', alignItems: 'center' },
+    resultText: { flex: 1, marginRight: 8 },
+    selectedBook: { flexDirection: 'row', alignItems: 'center', padding: 12, borderRadius: 8, marginTop: 12, gap: 12 },
+    selectedCover: { width: 40, height: 56, borderRadius: 4 },
 });

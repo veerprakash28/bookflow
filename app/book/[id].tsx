@@ -25,6 +25,7 @@ export default function BookDetailScreen() {
     const [scannedText, setScannedText] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
     const [isSpeaking, setIsSpeaking] = useState(false);
+    const [gutenbergTextUrl, setGutenbergTextUrl] = useState<string | null>(null);
 
     useFocusEffect(
         useCallback(() => {
@@ -36,12 +37,13 @@ export default function BookDetailScreen() {
                     title: foundBook.title,
                 });
             }
-            // Load persisted scanned text from DB
+            // Load persisted scanned text and gutenberg info from DB
             if (db && id) {
-                db.getFirstAsync<{ scannedText: string }>(
-                    'SELECT scannedText FROM books WHERE id = ?', [id as string]
+                db.getFirstAsync<{ scannedText: string; gutenbergTextUrl: string | null }>(
+                    'SELECT scannedText, gutenbergTextUrl FROM books WHERE id = ?', [id as string]
                 ).then(row => {
                     if (row?.scannedText) setScannedText(row.scannedText);
+                    if (row?.gutenbergTextUrl) setGutenbergTextUrl(row.gutenbergTextUrl);
                 }).catch(() => { });
             }
         }, [books, id, navigation, refreshBooks, db])
@@ -278,12 +280,46 @@ export default function BookDetailScreen() {
                     </Card.Content>
                 </Card>
 
+                {/* Digital Reading - shown if book available on Gutenberg */}
+                {gutenbergTextUrl && (
+                    <Card style={[styles.card, { borderColor: theme.colors.primary, borderWidth: 1.5 }]}>
+                        <Card.Content>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 8 }}>
+                                <MaterialCommunityIcons name="book-open-variant" size={24} color={theme.colors.primary} />
+                                <Text variant="titleMedium" style={{ color: theme.colors.primary, fontWeight: 'bold' }}>
+                                    Digital Version Available
+                                </Text>
+                            </View>
+                            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12 }}>
+                                This book is available in full from Project Gutenberg. Read chapter by chapter with text-to-speech.
+                            </Text>
+                            <Button
+                                mode="contained"
+                                icon="book-open-page-variant"
+                                onPress={() => router.push({
+                                    pathname: '/book/reader',
+                                    params: {
+                                        bookId: id as string,
+                                        bookTitle: book.title,
+                                        gutenbergTextUrl: encodeURIComponent(gutenbergTextUrl),
+                                    }
+                                })}
+                                contentStyle={{ height: 44 }}
+                            >
+                                Read Digitally
+                            </Button>
+                        </Card.Content>
+                    </Card>
+                )}
+
                 {/* Reading Assistant */}
                 <Card style={styles.card}>
                     <Card.Title title="Reading Assistant" left={(props) => <MaterialCommunityIcons {...props} name="text-recognition" size={24} />} />
                     <Card.Content>
                         <Text variant="bodyMedium" style={styles.helperText}>
-                            Scan pages to extract text. You can scan multiple pages to append them here.
+                            {gutenbergTextUrl
+                                ? 'Scan additional pages or notes to supplement your digital reading.'
+                                : 'Scan pages to extract text. You can scan multiple pages to append them here.'}
                         </Text>
 
                         <View style={styles.actionRow}>

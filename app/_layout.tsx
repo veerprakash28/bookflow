@@ -47,6 +47,7 @@ export default function RootLayout() {
                     <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                     <Stack.Screen name="add-book" options={{ presentation: 'modal', title: 'Add Book' }} />
                     <Stack.Screen name="book/[id]" options={{ headerShown: true, title: '' }} />
+                    <Stack.Screen name="book/reader" options={{ headerShown: true, title: 'Reader' }} />
                     <Stack.Screen name="+not-found" />
                 </Stack>
             </SQLiteProvider>

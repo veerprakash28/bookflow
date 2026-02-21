@@ -53,6 +53,23 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
     await db.runAsync("ALTER TABLE books ADD COLUMN scannedText TEXT DEFAULT ''");
   } catch (e) { /* Ignore - column may already exist */ }
 
+  // Add columns for Book API / digital reader feature
+  try {
+    await db.runAsync("ALTER TABLE books ADD COLUMN coverUrl TEXT");
+  } catch (e) { /* Ignore */ }
+
+  try {
+    await db.runAsync("ALTER TABLE books ADD COLUMN gutenbergId TEXT");
+  } catch (e) { /* Ignore */ }
+
+  try {
+    await db.runAsync("ALTER TABLE books ADD COLUMN gutenbergTextUrl TEXT");
+  } catch (e) { /* Ignore */ }
+
+  try {
+    await db.runAsync("ALTER TABLE books ADD COLUMN chapters TEXT"); // JSON string
+  } catch (e) { /* Ignore */ }
+
   // 3. Insert default rows
   await db.runAsync("INSERT OR IGNORE INTO stats (id, totalPoints, booksRead, currentStreak, longestStreak, lastReadDate) VALUES ('user_main', 0, 0, 0, 0, NULL)");
   await db.runAsync("INSERT OR IGNORE INTO user_settings (id, name, title) VALUES ('user_main', 'Guest User', 'Reading Enthusiast')");
