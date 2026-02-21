@@ -58,8 +58,20 @@ export async function findGutenbergBook(
     author: string
 ): Promise<{ id: string; textUrl: string } | null> {
     try {
-        const query = encodeURIComponent(`${title} ${author}`);
-        const res = await fetch(`https://gutendex.com/books/?search=${query}`);
+        // Strip out subtitles (after colon) or annotations in parentheses for better matching
+        const cleanTitle = title.split(':')[0].replace(/\(.*?\)/g, '').trim();
+        const cleanAuthor = author ? author.split(',')[0].trim() : '';
+        const query = encodeURIComponent(`${cleanTitle} ${cleanAuthor}`.trim());
+
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+        const res = await fetch(`https://gutendex.com/books/?search=${query}`, {
+            signal: controller.signal,
+            headers: { 'User-Agent': 'BookFlowApp/1.0' }
+        });
+        clearTimeout(timeoutId);
+
         const data = await res.json();
 
         if (!data.results || data.results.length === 0) return null;

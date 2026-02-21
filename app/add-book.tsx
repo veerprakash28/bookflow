@@ -94,14 +94,20 @@ export default function AddBookScreen() {
         try {
             if (isEditing) {
                 await db.runAsync(
-                    `UPDATE books SET title = ?, author = ?, totalUnits = ?, startDate = ?, targetEndDate = ? WHERE id = ?`,
-                    [title, author, parseInt(totalUnits), startDate.toISOString(), targetDate.toISOString(), id]
+                    `UPDATE books SET title = ?, author = ?, totalUnits = ?, startDate = ?, targetEndDate = ?
+                     ${selectedBook ? ', coverUrl = ?, gutenbergId = ?, gutenbergTextUrl = ?' : ''}
+                     WHERE id = ?`,
+                    selectedBook ? [
+                        title, author, parseInt(totalUnits), startDate.toISOString(), targetDate.toISOString(),
+                        selectedBook.coverUrl ?? null,
+                        selectedBook.gutenbergId ?? null,
+                        selectedBook.gutenbergId ? `https://www.gutenberg.org/cache/epub/${selectedBook.gutenbergId}/pg${selectedBook.gutenbergId}.txt` : null,
+                        id
+                    ] as any : [
+                        title, author, parseInt(totalUnits), startDate.toISOString(), targetDate.toISOString(), id
+                    ] as any
                 );
             } else {
-                const gutenberg = selectedBook?.gutenbergId
-                    ? await findGutenbergBook(selectedBook.title, selectedBook.author)
-                    : null;
-
                 const bookId = Date.now().toString();
                 await db.runAsync(
                     `INSERT INTO books (id, title, author, coverUri, coverUrl, gutenbergId, gutenbergTextUrl, totalUnits, unitsCompleted, status, startDate, targetEndDate)
@@ -112,8 +118,8 @@ export default function AddBookScreen() {
                         author,
                         selectedBook?.coverUrl ?? null,
                         selectedBook?.coverUrl ?? null,
-                        gutenberg?.id ?? null,
-                        gutenberg ? `https://www.gutenberg.org/cache/epub/${gutenberg.id}/pg${gutenberg.id}.txt` : null,
+                        selectedBook?.gutenbergId ?? null,
+                        selectedBook?.gutenbergId ? `https://www.gutenberg.org/cache/epub/${selectedBook.gutenbergId}/pg${selectedBook.gutenbergId}.txt` : null,
                         parseInt(totalUnits),
                         0,
                         'Reading',
@@ -194,10 +200,10 @@ export default function AddBookScreen() {
                                     >
                                         <View style={[styles.resultItem, idx < searchResults.length - 1 && { borderBottomWidth: 1, borderBottomColor: '#f0f0f0' }]}>
                                             {book.coverUrl ? (
-                                                <Image source={{ uri: book.coverUrl }} style={styles.resultCover} />
+                                                <Image source={{ uri: book.coverUrl }} style={{ width: 40, height: 60, borderRadius: 4, marginRight: 12 }} />
                                             ) : (
-                                                <View style={[styles.resultCoverPlaceholder, { backgroundColor: theme.colors.primaryContainer }]}>
-                                                    <MaterialCommunityIcons name="book" size={20} color={theme.colors.primary} />
+                                                <View style={{ width: 40, height: 60, borderRadius: 4, marginRight: 12, backgroundColor: theme.colors.surfaceVariant, overflow: 'hidden' }}>
+                                                    <Image source={require('../assets/icon.png')} style={{ width: 40, height: 60, resizeMode: 'cover' }} />
                                                 </View>
                                             )}
                                             <View style={styles.resultText}>
@@ -214,8 +220,10 @@ export default function AddBookScreen() {
                         {/* Selected book preview */}
                         {selectedBook && (
                             <View style={[styles.selectedBook, { backgroundColor: theme.colors.primaryContainer }]}>
-                                {selectedBook.coverUrl && (
+                                {selectedBook.coverUrl ? (
                                     <Image source={{ uri: selectedBook.coverUrl }} style={styles.selectedCover} />
+                                ) : (
+                                    <Image source={require('../assets/icon.png')} style={styles.selectedCover} />
                                 )}
                                 <View style={{ flex: 1 }}>
                                     <Text variant="bodyMedium" style={{ fontWeight: 'bold', color: theme.colors.onPrimaryContainer }}>{selectedBook.title}</Text>

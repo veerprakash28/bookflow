@@ -1,4 +1,4 @@
-import { View, StyleSheet, FlatList, Alert, LayoutAnimation, UIManager, Platform, Dimensions } from 'react-native';
+import { View, StyleSheet, FlatList, Alert, LayoutAnimation, UIManager, Platform, Dimensions, Image } from 'react-native';
 import { Text, FAB, useTheme, Card, ProgressBar, Chip, Surface, Portal, Modal, Button, Divider, IconButton, List } from 'react-native-paper';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -122,10 +122,17 @@ export default function LibraryScreen() {
                     mode="elevated"
                 >
                     <View style={styles.cardContent}>
-                        {/* Cover Placeholder */}
-                        <Surface style={[styles.cover, { backgroundColor: theme.colors.primaryContainer }]} elevation={1}>
-                            <MaterialCommunityIcons name="book-open-page-variant" size={32} color={theme.colors.onPrimaryContainer} />
-                        </Surface>
+                        {/* Cover Image or Placeholder */}
+                        {item.coverUri || item.coverUrl ? (
+                            <Image
+                                source={{ uri: item.coverUri || item.coverUrl }}
+                                style={styles.coverImage}
+                            />
+                        ) : (
+                            <Surface style={[styles.cover, { backgroundColor: theme.colors.primaryContainer, overflow: 'hidden' }]} elevation={1}>
+                                <Image source={require('../../assets/icon.png')} style={{ width: 80, height: 120, resizeMode: 'cover' }} />
+                            </Surface>
+                        )}
 
                         {/* Book Info */}
                         <View style={styles.bookInfo}>
@@ -262,6 +269,11 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    coverImage: {
+        width: 70,
+        height: 100,
+        borderRadius: 8,
     },
     bookInfo: {
         flex: 1,

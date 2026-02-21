@@ -6,6 +6,9 @@ export type Book = {
     title: string;
     author?: string; // Made optional locally, though DB allows specific types
     coverUri?: string;
+    coverUrl?: string;
+    gutenbergId?: string;
+    gutenbergTextUrl?: string;
     totalUnits: number;
     unitsCompleted: number;
     startDate?: string;

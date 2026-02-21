@@ -205,9 +205,13 @@ export default function BookDetailScreen() {
                 {/* Header Card */}
                 <Surface style={styles.headerCard} elevation={2}>
                     <View style={styles.headerContent}>
-                        <View style={[styles.coverPlaceholder, { backgroundColor: theme.colors.secondaryContainer }]}>
-                            <MaterialCommunityIcons name="book" size={40} color={theme.colors.onSecondaryContainer} />
-                        </View>
+                        {book.coverUri || book.coverUrl ? (
+                            <Image source={{ uri: book.coverUri || book.coverUrl }} style={styles.coverImage} />
+                        ) : (
+                            <View style={[styles.coverPlaceholder, { backgroundColor: theme.colors.secondaryContainer, overflow: 'hidden' }]}>
+                                <Image source={require('../../assets/icon.png')} style={{ width: 80, height: 120, resizeMode: 'cover' }} />
+                            </View>
+                        )}
                         <View style={styles.headerText}>
                             <Text variant="headlineSmall" style={styles.title}>{book.title}</Text>
                             <Text variant="bodyLarge" style={{ color: theme.colors.secondary }}>{book.author}</Text>
@@ -403,6 +407,11 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    coverImage: {
+        width: 80,
+        height: 120,
+        borderRadius: 8,
     },
     headerText: {
         flex: 1,
