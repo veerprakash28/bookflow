@@ -44,7 +44,7 @@ BookFlow is a modern, feature-rich mobile application designed to revolutionize 
 
 1.  **Clone the repository**:
     ```bash
-    git clone https://github.com/yourusername/bookflow.git
+    git clone https://github.com/veerprakash28/bookflow.git
     ```
 2.  **Install dependencies**:
     ```bash
