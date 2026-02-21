@@ -51,6 +51,7 @@
           }
         }
       ],
+      "expo-notifications",
       "./plugins/withTextRecognitionFix.js"
     ],
     "extra": {
