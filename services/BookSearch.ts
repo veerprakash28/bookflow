@@ -64,29 +64,26 @@ export async function findGutenbergBook(
         const query = encodeURIComponent(`${cleanTitle} ${cleanAuthor}`.trim());
 
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 6000);
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
 
-        const res = await fetch(`https://gutendex.com/books/?search=${query}`, {
+        // Direct scraping of Gutenberg search page prevents Gutendex rate limit timeouts
+        const res = await fetch(`https://gutenberg.org/ebooks/search/?query=${query}`, {
             signal: controller.signal,
             headers: { 'User-Agent': 'BookFlowApp/1.0' }
         });
         clearTimeout(timeoutId);
 
-        const data = await res.json();
+        const html = await res.text();
 
-        if (!data.results || data.results.length === 0) return null;
+        // Find the first matching book link, excluding the base /ebooks/ link
+        const match = html.match(/href="\/ebooks\/(\d+)"/);
 
-        // Find best match — prefer books with plain text format
-        for (const book of data.results) {
-            const textUrl =
-                book.formats['text/plain; charset=utf-8'] ||
-                book.formats['text/plain; charset=us-ascii'] ||
-                book.formats['text/plain'] ||
-                null;
-
-            if (textUrl) {
-                return { id: String(book.id), textUrl };
-            }
+        if (match && match[1]) {
+            const id = match[1];
+            return {
+                id,
+                textUrl: `https://www.gutenberg.org/cache/epub/${id}/pg${id}.txt`
+            };
         }
         return null;
     } catch (e) {

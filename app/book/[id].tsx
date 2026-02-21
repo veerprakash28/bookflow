@@ -11,6 +11,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDatabase } from '../../hooks/useDatabase';
 import { useStats } from '../../hooks/useStats';
+import { useToast } from '../../components/ToastProvider';
 
 export default function BookDetailScreen() {
     const { id } = useLocalSearchParams();
@@ -20,6 +21,7 @@ export default function BookDetailScreen() {
     const { books, refreshBooks } = useBooks();
     const { addPoints, updateBooksRead } = useStats(); // Updated hook
     const db = useDatabase();
+    const { showToast } = useToast();
 
     const [book, setBook] = useState<Book | null>(null);
     const [scannedText, setScannedText] = useState('');
@@ -78,13 +80,14 @@ export default function BookDetailScreen() {
                         [updated, id as string]
                     ).catch(console.error);
                 }
+                showToast('Text scanned and saved successfully!', 'success');
                 return updated;
             });
         } catch (e: any) {
             // User cancelled crop → no error shown
             if (e?.code === 'E_PICKER_CANCELLED') return;
             console.error(e);
-            Alert.alert('Error', 'Failed to recognize text. Please try again.');
+            showToast('Failed to recognize text. Please try again.', 'error');
         } finally {
             setIsProcessing(false);
         }
@@ -176,6 +179,7 @@ export default function BookDetailScreen() {
                     onPress: async () => {
                         await db.runAsync('DELETE FROM books WHERE id = ?', [book.id]);
                         await refreshBooks();
+                        showToast('Book deleted from library', 'info');
                         router.back();
                     }
                 }

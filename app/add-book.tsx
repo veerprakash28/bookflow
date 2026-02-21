@@ -3,15 +3,17 @@ import { View, StyleSheet, ScrollView, TouchableOpacity, Image, FlatList } from 
 import { TextInput, Button, Text, useTheme, Surface, HelperText, Divider, Chip, ActivityIndicator } from 'react-native-paper';
 import { useRouter, Stack, useLocalSearchParams } from 'expo-router';
 import { useDatabase } from '../hooks/useDatabase';
+import { useToast } from '../components/ToastProvider';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { searchBooks, findGutenbergBook, BookSearchResult } from '../services/BookSearch';
+import { searchBooks, findGutenbergBook, fetchAndParseChapters, BookSearchResult } from '../services/BookSearch';
 
 export default function AddBookScreen() {
     const router = useRouter();
     const theme = useTheme();
     const db = useDatabase();
+    const { showToast } = useToast();
 
     const { id } = useLocalSearchParams();
     const isEditing = !!id;
@@ -23,6 +25,7 @@ export default function AddBookScreen() {
     const [targetDate, setTargetDate] = useState(new Date());
     const [showStartDate, setShowStartDate] = useState(false);
     const [showTargetDate, setShowTargetDate] = useState(false);
+    const [selectedQuickDate, setSelectedQuickDate] = useState<number | null>(null);
     const [loading, setLoading] = useState(false);
 
     // Search state
@@ -78,6 +81,16 @@ export default function AddBookScreen() {
                 ...prev,
                 gutenbergId: gutenberg.id,
             } : prev);
+
+            // Attempt to fetch chapters to auto-fill Total Chapters
+            try {
+                const chapters = await fetchAndParseChapters(gutenberg.textUrl);
+                if (chapters && chapters.length > 0) {
+                    setTotalUnits(chapters.length.toString());
+                }
+            } catch (e) {
+                console.log('Could not pre-fetch chapters:', e);
+            }
         }
     };
 
@@ -85,6 +98,7 @@ export default function AddBookScreen() {
         const date = new Date(startDate);
         date.setDate(date.getDate() + days);
         setTargetDate(date);
+        setSelectedQuickDate(days);
     };
 
     const handleSave = async () => {
@@ -92,16 +106,30 @@ export default function AddBookScreen() {
 
         setLoading(true);
         try {
+            // Fetch chapters if we found a Gutenberg book so they are saved
+            let chaptersJson = null;
+            if (selectedBook?.gutenbergId) {
+                try {
+                    const chapters = await fetchAndParseChapters(`https://www.gutenberg.org/cache/epub/${selectedBook.gutenbergId}/pg${selectedBook.gutenbergId}.txt`);
+                    if (chapters && chapters.length > 0) {
+                        chaptersJson = JSON.stringify(chapters);
+                    }
+                } catch (e) {
+                    console.log('Failed to fetch chapters on save:', e);
+                }
+            }
+
             if (isEditing) {
                 await db.runAsync(
                     `UPDATE books SET title = ?, author = ?, totalUnits = ?, startDate = ?, targetEndDate = ?
-                     ${selectedBook ? ', coverUrl = ?, gutenbergId = ?, gutenbergTextUrl = ?' : ''}
+                     ${selectedBook ? ', coverUrl = ?, gutenbergId = ?, gutenbergTextUrl = ?, chapters = ?' : ''}
                      WHERE id = ?`,
                     selectedBook ? [
                         title, author, parseInt(totalUnits), startDate.toISOString(), targetDate.toISOString(),
                         selectedBook.coverUrl ?? null,
                         selectedBook.gutenbergId ?? null,
                         selectedBook.gutenbergId ? `https://www.gutenberg.org/cache/epub/${selectedBook.gutenbergId}/pg${selectedBook.gutenbergId}.txt` : null,
+                        chaptersJson,
                         id
                     ] as any : [
                         title, author, parseInt(totalUnits), startDate.toISOString(), targetDate.toISOString(), id
@@ -110,8 +138,8 @@ export default function AddBookScreen() {
             } else {
                 const bookId = Date.now().toString();
                 await db.runAsync(
-                    `INSERT INTO books (id, title, author, coverUri, coverUrl, gutenbergId, gutenbergTextUrl, totalUnits, unitsCompleted, status, startDate, targetEndDate)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                    `INSERT INTO books (id, title, author, coverUri, coverUrl, gutenbergId, gutenbergTextUrl, chapters, totalUnits, unitsCompleted, status, startDate, targetEndDate)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                     [
                         bookId,
                         title,
@@ -120,6 +148,7 @@ export default function AddBookScreen() {
                         selectedBook?.coverUrl ?? null,
                         selectedBook?.gutenbergId ?? null,
                         selectedBook?.gutenbergId ? `https://www.gutenberg.org/cache/epub/${selectedBook.gutenbergId}/pg${selectedBook.gutenbergId}.txt` : null,
+                        chaptersJson,
                         parseInt(totalUnits),
                         0,
                         'Reading',
@@ -128,10 +157,11 @@ export default function AddBookScreen() {
                     ] as any
                 );
             }
+            showToast(isEditing ? 'Book updated successfully!' : 'Book added to library!', 'success');
             router.back();
         } catch (e) {
             console.error(e);
-            alert('Failed to save book');
+            showToast('Failed to save book. Please try again.', 'error');
         } finally {
             setLoading(false);
         }
@@ -298,18 +328,21 @@ export default function AddBookScreen() {
                     <DateSelector label="Finish By" date={targetDate} onPress={() => setShowTargetDate(true)} />
 
                     <View style={styles.quickSelectContainer}>
-                        {[7, 14, 30].map((days) => (
-                            <Chip
-                                key={days}
-                                mode="outlined"
-                                onPress={() => setQuickDate(days)}
-                                style={styles.quickChip}
-                                textStyle={{ fontSize: 11 }}
-                                icon="lightning-bolt-outline"
-                            >
-                                {days === 30 ? '1 Month' : `${days} Days`}
-                            </Chip>
-                        ))}
+                        {[7, 14, 30].map((days) => {
+                            const isSelected = days === selectedQuickDate;
+                            return (
+                                <Chip
+                                    key={days}
+                                    mode={isSelected ? 'flat' : 'outlined'}
+                                    onPress={() => setQuickDate(days)}
+                                    style={[styles.quickChip, isSelected && { backgroundColor: theme.colors.primaryContainer, borderColor: theme.colors.primary }]}
+                                    textStyle={{ fontSize: 11, color: isSelected ? theme.colors.onPrimaryContainer : theme.colors.onSurface }}
+                                    icon="lightning-bolt-outline"
+                                >
+                                    {days === 30 ? '1 Month' : `${days} Days`}
+                                </Chip>
+                            );
+                        })}
                     </View>
 
                     <Divider style={{ marginVertical: 16 }} />
@@ -340,6 +373,7 @@ export default function AddBookScreen() {
                             if (selectedDate) {
                                 if (showStartDate) setStartDate(selectedDate);
                                 else setTargetDate(selectedDate);
+                                setSelectedQuickDate(null); // Clear active chip if manually customized
                             }
                         }}
                     />

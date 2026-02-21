@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { registerForPushNotificationsAsync, scheduleDailyReminder } from '../services/Notifications';
 import AnimatedSplashScreen from '../components/AnimatedSplashScreen';
 import { View, Platform } from 'react-native';
+import { ToastProvider } from '../components/ToastProvider';
 
 export default function RootLayout() {
     const [appReady, setAppReady] = useState(false);
@@ -20,7 +21,9 @@ export default function RootLayout() {
     if (!appReady) {
         return (
             <PaperProvider theme={theme}>
-                <AnimatedSplashScreen onFinish={() => setAppReady(true)} />
+                <ToastProvider>
+                    <AnimatedSplashScreen onFinish={() => setAppReady(true)} />
+                </ToastProvider>
             </PaperProvider>
         );
     }
@@ -28,29 +31,33 @@ export default function RootLayout() {
     if (Platform.OS === 'web') {
         return (
             <PaperProvider theme={theme}>
-                <StatusBar style="auto" />
-                <Stack>
-                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                    <Stack.Screen name="add-book" options={{ presentation: 'modal', title: 'Add Book' }} />
-                    <Stack.Screen name="book/[id]" options={{ headerShown: true, title: '' }} />
-                    <Stack.Screen name="+not-found" />
-                </Stack>
+                <ToastProvider>
+                    <StatusBar style="auto" />
+                    <Stack>
+                        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                        <Stack.Screen name="add-book" options={{ presentation: 'modal', title: 'Add Book' }} />
+                        <Stack.Screen name="book/[id]" options={{ headerShown: true, title: '' }} />
+                        <Stack.Screen name="+not-found" />
+                    </Stack>
+                </ToastProvider>
             </PaperProvider>
         );
     }
 
     return (
         <PaperProvider theme={theme}>
-            <SQLiteProvider databaseName="bookflow.db" onInit={migrateDbIfNeeded}>
-                <StatusBar style="auto" />
-                <Stack>
-                    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                    <Stack.Screen name="add-book" options={{ presentation: 'modal', title: 'Add Book' }} />
-                    <Stack.Screen name="book/[id]" options={{ headerShown: true, title: '' }} />
-                    <Stack.Screen name="book/reader" options={{ headerShown: true, title: 'Reader' }} />
-                    <Stack.Screen name="+not-found" />
-                </Stack>
-            </SQLiteProvider>
+            <ToastProvider>
+                <SQLiteProvider databaseName="bookflow.db" onInit={migrateDbIfNeeded}>
+                    <StatusBar style="auto" />
+                    <Stack>
+                        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                        <Stack.Screen name="add-book" options={{ presentation: 'modal', title: 'Add Book' }} />
+                        <Stack.Screen name="book/[id]" options={{ headerShown: true, title: '' }} />
+                        <Stack.Screen name="book/reader" options={{ headerShown: true, title: 'Reader' }} />
+                        <Stack.Screen name="+not-found" />
+                    </Stack>
+                </SQLiteProvider>
+            </ToastProvider>
         </PaperProvider>
     );
 }
