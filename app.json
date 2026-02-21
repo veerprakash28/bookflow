@@ -9,8 +9,8 @@
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#1D0C3B"
+      "resizeMode": "cover",
+      "backgroundColor": "#0E5DAC"
     },
     "ios": {
       "supportsTablet": true,
@@ -19,7 +19,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#1D0C3B"
+        "backgroundColor": "#0E5DAC"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,

@@ -48,6 +48,11 @@ export async function migrateDbIfNeeded(db: SQLiteDatabase) {
     await db.runAsync("ALTER TABLE stats ADD COLUMN lastReadDate TEXT");
   } catch (e) { /* Ignore */ }
 
+  // Add scannedText column to books for OCR text persistence
+  try {
+    await db.runAsync("ALTER TABLE books ADD COLUMN scannedText TEXT DEFAULT ''");
+  } catch (e) { /* Ignore - column may already exist */ }
+
   // 3. Insert default rows
   await db.runAsync("INSERT OR IGNORE INTO stats (id, totalPoints, booksRead, currentStreak, longestStreak, lastReadDate) VALUES ('user_main', 0, 0, 0, 0, NULL)");
   await db.runAsync("INSERT OR IGNORE INTO user_settings (id, name, title) VALUES ('user_main', 'Guest User', 'Reading Enthusiast')");

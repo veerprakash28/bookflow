@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter, useNavigation, Stack, useFocusEffect }
 import { useBooks, Book } from '../../hooks/useBooks';
 import { useState, useEffect, useCallback } from 'react';
 import * as ImagePicker from 'expo-image-picker';
+import ImageCropPicker from 'react-native-image-crop-picker';
 import { recognizeText } from '../../services/OCR';
 import * as Speech from 'expo-speech';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -35,7 +36,15 @@ export default function BookDetailScreen() {
                     title: foundBook.title,
                 });
             }
-        }, [books, id, navigation, refreshBooks])
+            // Load persisted scanned text from DB
+            if (db && id) {
+                db.getFirstAsync<{ scannedText: string }>(
+                    'SELECT scannedText FROM books WHERE id = ?', [id as string]
+                ).then(row => {
+                    if (row?.scannedText) setScannedText(row.scannedText);
+                }).catch(() => { });
+            }
+        }, [books, id, navigation, refreshBooks, db])
     );
 
     const handleScan = async () => {
@@ -46,27 +55,36 @@ export default function BookDetailScreen() {
             return;
         }
 
-        const result = await ImagePicker.launchCameraAsync({
-            mediaTypes: 'images',
-            allowsEditing: true,
-            aspect: [3, 4], // Constrain crop aspect to fix Android UI button bleed
-            quality: 1,
-        });
+        try {
+            // Use react-native-image-crop-picker for reliable crop UI on Android
+            const image = await ImageCropPicker.openCamera({
+                cropping: true,
+                freeStyleCropEnabled: true, // allow free-form crop
+                includeBase64: false,
+                compressImageQuality: 1,
+            });
 
-        if (!result.canceled) {
             setIsProcessing(true);
-            try {
-                const textBlocks = await recognizeText(result.assets[0].uri);
-                const fullText = textBlocks.join('\n');
+            const textBlocks = await recognizeText(image.path);
+            const fullText = textBlocks.join('\n');
 
-                // Append text instead of replacing
-                setScannedText(prev => prev ? prev + '\n\n' + fullText : fullText);
-            } catch (e) {
-                console.error(e);
-                Alert.alert('Error', 'Failed to recognize text');
-            } finally {
-                setIsProcessing(false);
-            }
+            setScannedText(prev => {
+                const updated = prev ? prev + '\n\n' + fullText : fullText;
+                if (db && id) {
+                    db.runAsync(
+                        'UPDATE books SET scannedText = ? WHERE id = ?',
+                        [updated, id as string]
+                    ).catch(console.error);
+                }
+                return updated;
+            });
+        } catch (e: any) {
+            // User cancelled crop → no error shown
+            if (e?.code === 'E_PICKER_CANCELLED') return;
+            console.error(e);
+            Alert.alert('Error', 'Failed to recognize text. Please try again.');
+        } finally {
+            setIsProcessing(false);
         }
     };
 

@@ -3,7 +3,22 @@ const fs = require('fs');
 const path = require('path');
 
 const withTextRecognitionFix = (config) => {
+    // Step 0: Auto-generate android/local.properties so Gradle always finds the SDK
+    config = withDangerousMod(config, [
+        'android',
+        async (config) => {
+            const localPropertiesPath = path.join(
+                config.modRequest.platformProjectRoot,
+                'local.properties'
+            );
+            const sdkPath = process.env.ANDROID_HOME || `/Users/${require('os').userInfo().username}/Library/Android/sdk`;
+            fs.writeFileSync(localPropertiesPath, `sdk.dir=${sdkPath}\n`);
+            return config;
+        },
+    ]);
+
     // Step 1: Fix compileSdkVersion in root build.gradle
+
     config = withProjectBuildGradle(config, async (config) => {
         const buildGradle = config.modResults.contents;
 

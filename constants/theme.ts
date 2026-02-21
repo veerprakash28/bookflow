@@ -4,7 +4,7 @@ export const theme = {
     ...DefaultTheme,
     colors: {
         ...DefaultTheme.colors,
-        primary: '#1565C0', // Blue 800 - Deep, rich blue
+        primary: '#0E5DAC', // Custom blue - matches icon
         onPrimary: '#FFFFFF',
         primaryContainer: '#E3F2FD',
         onPrimaryContainer: '#0D47A1',
