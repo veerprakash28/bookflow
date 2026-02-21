@@ -9,6 +9,8 @@ export type Book = {
     coverUrl?: string;
     gutenbergId?: string;
     gutenbergTextUrl?: string;
+    scannedText?: string;
+    chapters?: string;
     totalUnits: number;
     unitsCompleted: number;
     startDate?: string;

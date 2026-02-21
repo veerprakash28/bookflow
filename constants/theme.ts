@@ -13,9 +13,19 @@ export const theme = {
         secondaryContainer: '#FCE4EC',
         onSecondaryContainer: '#880E4F',
         tertiary: '#00695C', // Teal 800 - Deep Emerald for accents
-        background: '#FAFAFA', // High brightness gray
+        background: '#FFFFFF', // Pure white
         surface: '#FFFFFF',
         error: '#B00020',
         outline: '#757575',
+        surfaceVariant: '#FFFFFF', // Force white for variants
+        surfaceTint: '#FFFFFF',    // Remove tinting on elevated surfaces
+        elevation: {
+            level0: 'transparent',
+            level1: '#FFFFFF',
+            level2: '#FFFFFF',
+            level3: '#FFFFFF',
+            level4: '#FFFFFF',
+            level5: '#FFFFFF',
+        }
     },
 };

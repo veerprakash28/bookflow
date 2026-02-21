@@ -152,18 +152,37 @@ export default function LibraryScreen() {
                                 </Text>
                             </View>
 
-                            {/* Status Chip */}
-                            <View style={styles.footerRow}>
+                            {/* Status and Action */}
+                            <View style={[styles.footerRow, { justifyContent: 'space-between', gap: 8 }]}>
                                 {daysLeft !== null && (
                                     <Chip
                                         icon="clock-outline"
                                         style={[styles.chip, { backgroundColor: statusColor }]}
                                         textStyle={{ fontSize: 11, color: statusTextColor }}
                                         compact
-                                        onPress={() => { }} // dummy press to avoid touch propagation issues if needed
+                                        onPress={() => { }} // dummy press
                                     >
                                         {statusText}
                                     </Chip>
+                                )}
+
+                                {(item.gutenbergTextUrl || item.scannedText) && item.unitsCompleted > 0 && item.status !== 'Completed' && (
+                                    <Button
+                                        mode="contained-tonal"
+                                        compact
+                                        icon="play-circle"
+                                        onPress={() => {
+                                            if (item.gutenbergTextUrl) {
+                                                router.push(`/book/reader?gutenbergTextUrl=${encodeURIComponent(item.gutenbergTextUrl)}&bookId=${item.id}&bookTitle=${encodeURIComponent(item.title)}`);
+                                            } else {
+                                                router.push(`/book/${item.id}`);
+                                            }
+                                        }}
+                                        style={{ marginVertical: -4 }}
+                                        labelStyle={{ fontSize: 12, marginHorizontal: 8 }}
+                                    >
+                                        Resume
+                                    </Button>
                                 )}
                             </View>
                         </View>

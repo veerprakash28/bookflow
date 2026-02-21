@@ -10,6 +10,8 @@ import { registerForPushNotificationsAsync, scheduleDailyReminder } from '../ser
 import AnimatedSplashScreen from '../components/AnimatedSplashScreen';
 import { View, Platform } from 'react-native';
 import { ToastProvider } from '../components/ToastProvider';
+import { AudioProvider } from '../components/AudioProvider';
+import MiniPlayer from '../components/MiniPlayer';
 
 export default function RootLayout() {
     const [appReady, setAppReady] = useState(false);
@@ -22,7 +24,9 @@ export default function RootLayout() {
         return (
             <PaperProvider theme={theme}>
                 <ToastProvider>
-                    <AnimatedSplashScreen onFinish={() => setAppReady(true)} />
+                    <AudioProvider>
+                        <AnimatedSplashScreen onFinish={() => setAppReady(true)} />
+                    </AudioProvider>
                 </ToastProvider>
             </PaperProvider>
         );
@@ -32,13 +36,16 @@ export default function RootLayout() {
         return (
             <PaperProvider theme={theme}>
                 <ToastProvider>
-                    <StatusBar style="auto" />
-                    <Stack>
-                        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                        <Stack.Screen name="add-book" options={{ presentation: 'modal', title: 'Add Book' }} />
-                        <Stack.Screen name="book/[id]" options={{ headerShown: true, title: '' }} />
-                        <Stack.Screen name="+not-found" />
-                    </Stack>
+                    <AudioProvider>
+                        <StatusBar style="auto" />
+                        <Stack>
+                            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                            <Stack.Screen name="add-book" options={{ presentation: 'modal', title: 'Add Book' }} />
+                            <Stack.Screen name="book/[id]" options={{ headerShown: true, title: '' }} />
+                            <Stack.Screen name="+not-found" />
+                        </Stack>
+                        <MiniPlayer />
+                    </AudioProvider>
                 </ToastProvider>
             </PaperProvider>
         );
@@ -48,14 +55,17 @@ export default function RootLayout() {
         <PaperProvider theme={theme}>
             <ToastProvider>
                 <SQLiteProvider databaseName="bookflow.db" onInit={migrateDbIfNeeded}>
-                    <StatusBar style="auto" />
-                    <Stack>
-                        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                        <Stack.Screen name="add-book" options={{ presentation: 'modal', title: 'Add Book' }} />
-                        <Stack.Screen name="book/[id]" options={{ headerShown: true, title: '' }} />
-                        <Stack.Screen name="book/reader" options={{ headerShown: true, title: 'Reader' }} />
-                        <Stack.Screen name="+not-found" />
-                    </Stack>
+                    <AudioProvider>
+                        <StatusBar style="auto" />
+                        <Stack>
+                            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                            <Stack.Screen name="add-book" options={{ presentation: 'modal', title: 'Add Book' }} />
+                            <Stack.Screen name="book/[id]" options={{ headerShown: true, title: '' }} />
+                            <Stack.Screen name="book/reader" options={{ headerShown: true, title: 'Reader' }} />
+                            <Stack.Screen name="+not-found" />
+                        </Stack>
+                        <MiniPlayer />
+                    </AudioProvider>
                 </SQLiteProvider>
             </ToastProvider>
         </PaperProvider>

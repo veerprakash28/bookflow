@@ -3,10 +3,10 @@ import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-nat
 import { Text, useTheme, ActivityIndicator, Surface, IconButton, ProgressBar } from 'react-native-paper';
 import { useLocalSearchParams, useNavigation, Stack } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Speech from 'expo-speech';
 import { useDatabase } from '../../hooks/useDatabase';
 import { fetchAndParseChapters, Chapter } from '../../services/BookSearch';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useAudio } from '../../components/AudioProvider';
 
 export default function ReaderScreen() {
     const { bookId, bookTitle, gutenbergTextUrl, chapterIndex } = useLocalSearchParams<{
@@ -28,6 +28,8 @@ export default function ReaderScreen() {
     const [currentSentenceIdx, setCurrentSentenceIdx] = useState(0);
     const [view, setView] = useState<'chapters' | 'reading'>('chapters');
 
+    const audio = useAudio();
+
     useEffect(() => {
         navigation.setOptions({ title: bookTitle || 'Reader' });
         loadChapters();
@@ -41,26 +43,35 @@ export default function ReaderScreen() {
                 'SELECT chapters FROM books WHERE id = ?', [bookId]
             );
 
+            let loadedChapters: Chapter[] = [];
             if (row?.chapters) {
-                const parsed: Chapter[] = JSON.parse(row.chapters);
-                setChapters(parsed);
-                // Auto-open chapter if passed via params
-                if (chapterIndex !== undefined) {
-                    openChapter(parsed[parseInt(chapterIndex)] || parsed[0]);
-                }
+                loadedChapters = JSON.parse(row.chapters);
+                setChapters(loadedChapters);
             } else if (gutenbergTextUrl) {
                 // Fetch from Gutenberg and cache
                 const gutenbergUrl = decodeURIComponent(gutenbergTextUrl);
-                const fetchedChapters = await fetchAndParseChapters(gutenbergUrl);
-                setChapters(fetchedChapters);
+                loadedChapters = await fetchAndParseChapters(gutenbergUrl);
+                setChapters(loadedChapters);
                 // Cache to DB
                 await db.runAsync(
                     'UPDATE books SET chapters = ? WHERE id = ?',
-                    [JSON.stringify(fetchedChapters), bookId]
+                    [JSON.stringify(loadedChapters), bookId]
                 );
-                if (chapterIndex !== undefined) {
-                    openChapter(fetchedChapters[parseInt(chapterIndex)] || fetchedChapters[0]);
+            }
+
+            // If we are currently globally playing this book, sync chapter
+            if (audio.currentBookId === bookId && audio.currentTitle) {
+                const activeChap = loadedChapters.find(c => c.title === audio.currentTitle);
+                if (activeChap) {
+                    setCurrentChapter(activeChap);
+                    setSentences(audio.currentSentences);
+                    setView('reading');
+                    return; // skip auto opening another chapter
                 }
+            }
+
+            if (chapterIndex !== undefined && loadedChapters.length > 0) {
+                openChapter(loadedChapters[parseInt(chapterIndex)] || loadedChapters[0]);
             }
         } catch (e) {
             console.error('Error loading chapters:', e);
@@ -70,8 +81,12 @@ export default function ReaderScreen() {
         }
     };
 
+    const isLinkedToAudio = audio.currentBookId === bookId && audio.currentTitle === currentChapter?.title;
+    const activeSentences = isLinkedToAudio && audio.currentSentences.length > 0 ? audio.currentSentences : sentences;
+    const activeSentenceIdx = isLinkedToAudio ? audio.currentSentenceIdx : currentSentenceIdx;
+    const isSpeakingActive = isLinkedToAudio && audio.isPlaying;
+
     const openChapter = (chapter: Chapter) => {
-        stopSpeech();
         setCurrentChapter(chapter);
         // Split content into sentences for TTS
         const sentenceList = chapter.content
@@ -84,53 +99,40 @@ export default function ReaderScreen() {
         scrollRef.current?.scrollTo({ y: 0, animated: false });
     };
 
-    const stopSpeech = () => {
-        Speech.stop();
-        setIsSpeaking(false);
-    };
-
-    const speakFrom = useCallback((idx: number) => {
-        if (!sentences.length || idx >= sentences.length) {
-            setIsSpeaking(false);
-            return;
-        }
-        setCurrentSentenceIdx(idx);
-        setIsSpeaking(true);
-        Speech.speak(sentences[idx], {
-            rate: 0.9,
-            onDone: () => speakFrom(idx + 1),
-            onStopped: () => setIsSpeaking(false),
-            onError: () => setIsSpeaking(false),
-        });
-    }, [sentences]);
-
     const handlePlayPause = () => {
-        if (isSpeaking) {
-            stopSpeech();
+        if (isLinkedToAudio && (audio.isPlaying || audio.isPaused)) {
+            if (audio.isPlaying) audio.pause();
+            else audio.resume();
         } else {
-            speakFrom(currentSentenceIdx);
+            audio.play(activeSentences, activeSentenceIdx, currentChapter?.title || bookTitle, bookId, gutenbergTextUrl as string);
         }
     };
 
     const handlePrev = () => {
-        stopSpeech();
-        const newIdx = Math.max(0, currentSentenceIdx - 1);
-        setCurrentSentenceIdx(newIdx);
+        if (isLinkedToAudio) {
+            audio.prev();
+        } else {
+            setCurrentSentenceIdx(Math.max(0, currentSentenceIdx - 1));
+        }
     };
 
     const handleNext = () => {
-        stopSpeech();
-        const newIdx = Math.min(sentences.length - 1, currentSentenceIdx + 1);
-        setCurrentSentenceIdx(newIdx);
+        if (isLinkedToAudio) {
+            audio.next();
+        } else {
+            setCurrentSentenceIdx(Math.min(activeSentences.length - 1, currentSentenceIdx + 1));
+        }
     };
 
     const handlePrevChapter = () => {
         if (!currentChapter || currentChapter.index <= 0) return;
+        audio.stop();
         openChapter(chapters[currentChapter.index - 1]);
     };
 
     const handleNextChapter = () => {
         if (!currentChapter || currentChapter.index >= chapters.length - 1) return;
+        audio.stop();
         openChapter(chapters[currentChapter.index + 1]);
     };
 
@@ -195,7 +197,7 @@ export default function ReaderScreen() {
                 options={{
                     title: currentChapter?.title || 'Reading',
                     headerLeft: () => (
-                        <IconButton icon="format-list-bulleted" onPress={() => { stopSpeech(); setView('chapters'); }} />
+                        <IconButton icon="format-list-bulleted" onPress={() => { audio.stop(); setView('chapters'); }} />
                     ),
                 }}
             />
@@ -213,15 +215,18 @@ export default function ReaderScreen() {
                         key={idx}
                         style={[
                             styles.sentence,
-                            idx === currentSentenceIdx && isSpeaking && {
+                            idx === activeSentenceIdx && isSpeakingActive && {
                                 backgroundColor: theme.colors.primaryContainer,
                                 color: theme.colors.onPrimaryContainer,
                                 borderRadius: 4,
                             },
                         ]}
                         onPress={() => {
-                            stopSpeech();
-                            setCurrentSentenceIdx(idx);
+                            if (isLinkedToAudio && audio.isPlaying) {
+                                audio.setSentenceIdx(idx);
+                            } else {
+                                setCurrentSentenceIdx(idx);
+                            }
                         }}
                     >
                         {sentence + ' '}
@@ -248,7 +253,7 @@ export default function ReaderScreen() {
                         </Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity onPress={() => { stopSpeech(); setView('chapters'); }}>
+                    <TouchableOpacity onPress={() => { audio.stop(); setView('chapters'); }}>
                         <Text style={{ fontSize: 12, color: theme.colors.primary, fontWeight: 'bold' }}>
                             {currentChapter ? `${currentChapter.index + 1} / ${chapters.length}` : ''}
                         </Text>
@@ -272,18 +277,18 @@ export default function ReaderScreen() {
 
                 {/* Playback controls */}
                 <View style={styles.playbackControls}>
-                    <IconButton icon="skip-previous" size={28} onPress={handlePrev} iconColor={theme.colors.primary} />
+                    <IconButton icon="skip-previous" size={28} onPress={handlePrev} iconColor={theme.colors.primary} disabled={activeSentenceIdx <= 0} />
                     <TouchableOpacity
                         style={[styles.playBtn, { backgroundColor: theme.colors.primary }]}
                         onPress={handlePlayPause}
                     >
                         <MaterialCommunityIcons
-                            name={isSpeaking ? 'pause' : 'play'}
+                            name={isSpeakingActive ? 'pause' : 'play'}
                             size={32}
                             color="white"
                         />
                     </TouchableOpacity>
-                    <IconButton icon="skip-next" size={28} onPress={handleNext} iconColor={theme.colors.primary} />
+                    <IconButton icon="skip-next" size={28} onPress={handleNext} iconColor={theme.colors.primary} disabled={activeSentenceIdx >= activeSentences.length - 1} />
                 </View>
             </Surface>
         </SafeAreaView>

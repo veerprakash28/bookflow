@@ -6,12 +6,12 @@ import { useState, useEffect, useCallback } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import ImageCropPicker from 'react-native-image-crop-picker';
 import { recognizeText } from '../../services/OCR';
-import * as Speech from 'expo-speech';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDatabase } from '../../hooks/useDatabase';
 import { useStats } from '../../hooks/useStats';
 import { useToast } from '../../components/ToastProvider';
+import { useAudio } from '../../components/AudioProvider';
 
 export default function BookDetailScreen() {
     const { id } = useLocalSearchParams();
@@ -26,8 +26,11 @@ export default function BookDetailScreen() {
     const [book, setBook] = useState<Book | null>(null);
     const [scannedText, setScannedText] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
-    const [isSpeaking, setIsSpeaking] = useState(false);
     const [gutenbergTextUrl, setGutenbergTextUrl] = useState<string | null>(null);
+
+    const audio = useAudio();
+    const isLinkedToAudio = audio.currentBookId === id && audio.currentTitle === 'Scanned Pages';
+    const isSpeaking = isLinkedToAudio && (audio.isPlaying || audio.isPaused);
 
     useFocusEffect(
         useCallback(() => {
@@ -94,16 +97,13 @@ export default function BookDetailScreen() {
     };
 
     const handleSpeak = () => {
-        if (isSpeaking) {
-            Speech.stop();
-            setIsSpeaking(false);
+        if (isLinkedToAudio && (audio.isPlaying || audio.isPaused)) {
+            if (audio.isPlaying) audio.pause();
+            else audio.resume();
         } else {
             if (!scannedText) return;
-            Speech.speak(scannedText, {
-                onDone: () => setIsSpeaking(false),
-                onStopped: () => setIsSpeaking(false),
-            });
-            setIsSpeaking(true);
+            const sentences = scannedText.replace(/\n+/g, ' ').split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
+            audio.play(sentences, 0, 'Scanned Pages', id as string);
         }
     };
 
