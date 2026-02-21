@@ -239,6 +239,11 @@ export default function AddBookScreen() {
                                             <View style={styles.resultText}>
                                                 <Text variant="bodyMedium" style={{ fontWeight: 'bold' }} numberOfLines={1}>{book.title}</Text>
                                                 <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant }} numberOfLines={1}>{book.author}</Text>
+                                                {book.gutenbergId ? (
+                                                    <Text style={{ fontSize: 10, color: '#2E7D32', marginTop: 2 }}>✓ Digital Available</Text>
+                                                ) : (
+                                                    <Text style={{ fontSize: 10, color: theme.colors.outline, marginTop: 2 }}>✕ Digital Not Available</Text>
+                                                )}
                                             </View>
                                             <MaterialCommunityIcons name="chevron-right" size={20} color={theme.colors.outline} />
                                         </View>
@@ -258,9 +263,13 @@ export default function AddBookScreen() {
                                 <View style={{ flex: 1 }}>
                                     <Text variant="bodyMedium" style={{ fontWeight: 'bold', color: theme.colors.onPrimaryContainer }}>{selectedBook.title}</Text>
                                     <Text variant="bodySmall" style={{ color: theme.colors.onPrimaryContainer }}>{selectedBook.author}</Text>
-                                    {gutenbergFound && (
+                                    {gutenbergFound ? (
                                         <Chip icon="book-open-variant" style={{ marginTop: 6, backgroundColor: '#E8F5E9', alignSelf: 'flex-start' }} textStyle={{ fontSize: 11, color: '#2E7D32' }}>
                                             Digital reading available ✓
+                                        </Chip>
+                                    ) : (
+                                        <Chip icon="book-off-outline" style={{ marginTop: 6, backgroundColor: theme.colors.surfaceVariant, alignSelf: 'flex-start' }} textStyle={{ fontSize: 11, color: theme.colors.onSurfaceVariant }}>
+                                            Digital Not Available
                                         </Chip>
                                     )}
                                 </View>

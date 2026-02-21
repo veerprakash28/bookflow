@@ -5,11 +5,12 @@ interface AudioContextType {
     isPlaying: boolean;
     isPaused: boolean;
     currentTitle: string | null;
+    currentBookTitle: string | null;
     currentSentences: string[];
     currentSentenceIdx: number;
     currentBookId: string | null;
     currentUrl: string | null;
-    play: (sentences: string[], startIndex: number, title: string, bookId: string, url?: string) => void;
+    play: (sentences: string[], startIndex: number, title: string, bookId: string, url?: string, bookTitle?: string) => void;
     pause: () => void;
     resume: () => void;
     stop: () => void;
@@ -24,6 +25,7 @@ export const AudioProvider = ({ children }: { children: ReactNode }) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [isPaused, setIsPaused] = useState(false);
     const [currentTitle, setCurrentTitle] = useState<string | null>(null);
+    const [currentBookTitle, setCurrentBookTitle] = useState<string | null>(null);
     const [currentSentences, setCurrentSentences] = useState<string[]>([]);
     const [currentSentenceIdx, setCurrentSentenceIdx] = useState(0);
     const [currentBookId, setCurrentBookId] = useState<string | null>(null);
@@ -66,10 +68,11 @@ export const AudioProvider = ({ children }: { children: ReactNode }) => {
         });
     };
 
-    const play = (sentences: string[], startIndex: number, title: string, bookId: string, url?: string) => {
+    const play = (sentences: string[], startIndex: number, title: string, bookId: string, url?: string, bookTitle?: string) => {
         Speech.stop();
         setCurrentSentences(sentences);
         setCurrentTitle(title);
+        setCurrentBookTitle(bookTitle || null);
         setCurrentBookId(bookId);
         setCurrentUrl(url || null);
         setCurrentSentenceIdx(startIndex);
@@ -105,6 +108,7 @@ export const AudioProvider = ({ children }: { children: ReactNode }) => {
         setIsPlaying(false);
         setIsPaused(false);
         setCurrentTitle(null);
+        setCurrentBookTitle(null);
         setCurrentSentences([]);
         setCurrentSentenceIdx(0);
         setCurrentBookId(null);
@@ -147,6 +151,7 @@ export const AudioProvider = ({ children }: { children: ReactNode }) => {
             isPlaying,
             isPaused,
             currentTitle,
+            currentBookTitle,
             currentSentences,
             currentSentenceIdx,
             currentBookId,

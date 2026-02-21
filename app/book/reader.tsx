@@ -47,7 +47,7 @@ export default function ReaderScreen() {
             if (row?.chapters) {
                 loadedChapters = JSON.parse(row.chapters);
                 setChapters(loadedChapters);
-            } else if (gutenbergTextUrl) {
+            } else if (gutenbergTextUrl && gutenbergTextUrl !== 'local') {
                 // Fetch from Gutenberg and cache
                 const gutenbergUrl = decodeURIComponent(gutenbergTextUrl);
                 loadedChapters = await fetchAndParseChapters(gutenbergUrl);
@@ -104,7 +104,7 @@ export default function ReaderScreen() {
             if (audio.isPlaying) audio.pause();
             else audio.resume();
         } else {
-            audio.play(activeSentences, activeSentenceIdx, currentChapter?.title || bookTitle, bookId, gutenbergTextUrl as string);
+            audio.play(activeSentences, activeSentenceIdx, currentChapter?.title || bookTitle, bookId, gutenbergTextUrl as string, bookTitle);
         }
     };
 
@@ -167,12 +167,12 @@ export default function ReaderScreen() {
                         <Text variant="titleMedium" style={{ color: theme.colors.primary, fontWeight: 'bold', marginBottom: 12 }}>
                             {chapters.length} Chapters Available
                         </Text>
-                        {chapters.map((chapter) => (
-                            <TouchableOpacity key={chapter.index} onPress={() => openChapter(chapter)} activeOpacity={0.7}>
+                        {chapters.map((chapter, idx) => (
+                            <TouchableOpacity key={chapter.index ?? idx} onPress={() => openChapter(chapter)} activeOpacity={0.7}>
                                 <Surface style={styles.chapterItem} elevation={1}>
                                     <View style={[styles.chapterNum, { backgroundColor: theme.colors.primaryContainer }]}>
                                         <Text style={{ color: theme.colors.primary, fontWeight: 'bold', fontSize: 13 }}>
-                                            {chapter.index + 1}
+                                            {(chapter.index ?? idx) + 1}
                                         </Text>
                                     </View>
                                     <Text variant="bodyMedium" style={{ flex: 1, color: theme.colors.onSurface }} numberOfLines={2}>
@@ -240,13 +240,13 @@ export default function ReaderScreen() {
                 <View style={styles.chapterNav}>
                     <TouchableOpacity
                         onPress={handlePrevChapter}
-                        disabled={!currentChapter || currentChapter.index <= 0}
+                        disabled={!currentChapter || (currentChapter.index ?? 0) <= 0}
                         style={styles.chapterNavBtn}
                     >
                         <MaterialCommunityIcons
                             name="chevron-left"
                             size={16}
-                            color={(!currentChapter || currentChapter.index <= 0) ? theme.colors.outline : theme.colors.primary}
+                            color={(!currentChapter || (currentChapter.index ?? 0) <= 0) ? theme.colors.outline : theme.colors.primary}
                         />
                         <Text style={{ fontSize: 12, color: theme.colors.onSurfaceVariant }} numberOfLines={1}>
                             Prev Chapter
@@ -255,13 +255,13 @@ export default function ReaderScreen() {
 
                     <TouchableOpacity onPress={() => { audio.stop(); setView('chapters'); }}>
                         <Text style={{ fontSize: 12, color: theme.colors.primary, fontWeight: 'bold' }}>
-                            {currentChapter ? `${currentChapter.index + 1} / ${chapters.length}` : ''}
+                            {currentChapter ? `${(currentChapter.index ?? 0) + 1} / ${chapters.length}` : ''}
                         </Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                         onPress={handleNextChapter}
-                        disabled={!currentChapter || currentChapter.index >= chapters.length - 1}
+                        disabled={!currentChapter || (currentChapter.index ?? 0) >= chapters.length - 1}
                         style={styles.chapterNavBtn}
                     >
                         <Text style={{ fontSize: 12, color: theme.colors.onSurfaceVariant }} numberOfLines={1}>
@@ -270,7 +270,7 @@ export default function ReaderScreen() {
                         <MaterialCommunityIcons
                             name="chevron-right"
                             size={16}
-                            color={(!currentChapter || currentChapter.index >= chapters.length - 1) ? theme.colors.outline : theme.colors.primary}
+                            color={(!currentChapter || (currentChapter.index ?? 0) >= chapters.length - 1) ? theme.colors.outline : theme.colors.primary}
                         />
                     </TouchableOpacity>
                 </View>

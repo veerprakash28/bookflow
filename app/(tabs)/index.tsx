@@ -167,10 +167,11 @@ export default function LibraryScreen() {
                                 )}
 
                                 {(item.gutenbergTextUrl || item.scannedText) && item.unitsCompleted > 0 && item.status !== 'Completed' && (
-                                    <Button
-                                        mode="contained-tonal"
-                                        compact
+                                    <Chip
                                         icon="play-circle"
+                                        style={[styles.chip, { backgroundColor: theme.colors.primaryContainer }]}
+                                        textStyle={{ fontSize: 11, color: theme.colors.onPrimaryContainer, fontWeight: 'bold' }}
+                                        compact
                                         onPress={() => {
                                             if (item.gutenbergTextUrl) {
                                                 router.push(`/book/reader?gutenbergTextUrl=${encodeURIComponent(item.gutenbergTextUrl)}&bookId=${item.id}&bookTitle=${encodeURIComponent(item.title)}`);
@@ -178,11 +179,9 @@ export default function LibraryScreen() {
                                                 router.push(`/book/${item.id}`);
                                             }
                                         }}
-                                        style={{ marginVertical: -4 }}
-                                        labelStyle={{ fontSize: 12, marginHorizontal: 8 }}
                                     >
                                         Resume
-                                    </Button>
+                                    </Chip>
                                 )}
                             </View>
                         </View>

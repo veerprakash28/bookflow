@@ -5,7 +5,7 @@ import { useAudio } from './AudioProvider';
 import { useRouter, usePathname } from 'expo-router';
 
 export default function MiniPlayer() {
-    const { isPlaying, isPaused, currentTitle, currentBookId, currentUrl, play, pause, resume, stop } = useAudio();
+    const { isPlaying, isPaused, currentTitle, currentBookTitle, currentBookId, currentUrl, play, pause, resume, stop } = useAudio();
     const theme = useTheme();
     const router = useRouter();
     const pathname = usePathname();
@@ -25,8 +25,8 @@ export default function MiniPlayer() {
         <Surface style={[styles.container, { backgroundColor: theme.colors.elevation.level3 }]} elevation={4}>
             <TouchableOpacity style={styles.content} onPress={handlePress} activeOpacity={0.8}>
                 <View style={styles.textContainer}>
-                    <Text variant="labelSmall" style={{ color: theme.colors.primary, fontWeight: 'bold' }}>NOW READING</Text>
-                    <Text variant="bodyMedium" numberOfLines={1} style={{ fontWeight: '500' }}>{currentTitle || 'Unknown Book'}</Text>
+                    <Text variant="labelSmall" style={{ color: theme.colors.primary, fontWeight: 'bold' }}>{currentBookTitle ? currentBookTitle.toUpperCase() : 'NOW READING'}</Text>
+                    <Text variant="bodyMedium" numberOfLines={1} style={{ fontWeight: '500' }}>{currentTitle || 'Unknown Section'}</Text>
                 </View>
                 <View style={styles.controls}>
                     {isPlaying ? (

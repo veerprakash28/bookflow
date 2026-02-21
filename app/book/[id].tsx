@@ -12,6 +12,7 @@ import { useDatabase } from '../../hooks/useDatabase';
 import { useStats } from '../../hooks/useStats';
 import { useToast } from '../../components/ToastProvider';
 import { useAudio } from '../../components/AudioProvider';
+import { pickAndParseDocument } from '../../services/DocumentParser';
 
 export default function BookDetailScreen() {
     const { id } = useLocalSearchParams();
@@ -26,6 +27,7 @@ export default function BookDetailScreen() {
     const [book, setBook] = useState<Book | null>(null);
     const [scannedText, setScannedText] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
+    const [isUploading, setIsUploading] = useState(false);
     const [gutenbergTextUrl, setGutenbergTextUrl] = useState<string | null>(null);
 
     const audio = useAudio();
@@ -103,7 +105,34 @@ export default function BookDetailScreen() {
         } else {
             if (!scannedText) return;
             const sentences = scannedText.replace(/\n+/g, ' ').split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
-            audio.play(sentences, 0, 'Scanned Pages', id as string);
+            audio.play(sentences, 0, 'Scanned Pages', id as string, undefined, book?.title);
+        }
+    };
+
+    const handleUploadBook = async () => {
+        setIsUploading(true);
+        try {
+            const result = await pickAndParseDocument();
+            if (result && result.text) {
+                const chapters = JSON.stringify([{
+                    title: result.fileName.replace(/\.[^/.]+$/, ""),
+                    content: result.text,
+                    index: 0
+                }]);
+                if (db && id) {
+                    await db.runAsync('UPDATE books SET chapters = ? WHERE id = ?', [chapters, id as string]);
+                    showToast(`Document uploaded successfully!`, "success");
+                    setGutenbergTextUrl('local');
+                    refreshBooks();
+                }
+            } else if (result) {
+                showToast("Could not extract any text from the document.", "error");
+            }
+        } catch (e) {
+            showToast("Error processing document", "error");
+            console.error(e);
+        } finally {
+            setIsUploading(false);
         }
     };
 
@@ -117,7 +146,7 @@ export default function BookDetailScreen() {
             const isUncompleting = oldProgress === book.totalUnits && newProgress < oldProgress;
 
             // Determine new status
-            let newStatus = book.status;
+            let newStatus: "To Read" | "Reading" | "Completed" | "Paused" = book.status as any;
             if (newProgress === book.totalUnits) newStatus = 'Completed';
             else if (newProgress > 0) newStatus = 'Reading';
             else newStatus = 'To Read';
@@ -161,7 +190,7 @@ export default function BookDetailScreen() {
     const progress = book.totalUnits > 0 ? book.unitsCompleted / book.totalUnits : 0;
 
     // Date Calculation
-    const targetDate = new Date(book.targetEndDate);
+    const targetDate = book.targetEndDate ? new Date(book.targetEndDate) : new Date();
     const today = new Date();
     const timeDiff = targetDate.getTime() - today.getTime();
     const daysLeft = Math.ceil(timeDiff / (1000 * 3600 * 24));
@@ -217,12 +246,9 @@ export default function BookDetailScreen() {
                             </View>
                         )}
                         <View style={styles.headerText}>
-                            <Text variant="headlineSmall" style={styles.title}>{book.title}</Text>
-                            <Text variant="bodyLarge" style={{ color: theme.colors.secondary }}>{book.author}</Text>
+                            <Text variant="titleMedium" style={styles.title} numberOfLines={2}>{book.title}</Text>
+                            <Text variant="bodyMedium" style={{ color: theme.colors.secondary, marginBottom: 8 }} numberOfLines={1}>{book.author}</Text>
                             <View style={styles.badges}>
-                                <Chip icon="calendar" style={styles.chip} textStyle={{ fontSize: 12 }}>
-                                    Target: {targetDate.toLocaleDateString()}
-                                </Chip>
                                 <Chip
                                     icon="clock-outline"
                                     style={[styles.chip, isOverdue && { backgroundColor: theme.colors.errorContainer }]}
@@ -241,144 +267,166 @@ export default function BookDetailScreen() {
                     <Divider style={{ marginVertical: 16 }} />
                     <View style={styles.dateRow}>
                         <View style={styles.dateItem}>
-                            <Text variant="labelMedium" style={{ color: theme.colors.outline }}>Start Date</Text>
-                            <Text variant="bodyMedium" style={{ fontWeight: 'bold' }}>
+                            <Text variant="labelSmall" style={{ color: theme.colors.outline }}>Start Date</Text>
+                            <Text variant="bodySmall" style={{ fontWeight: 'bold' }}>
                                 {book.startDate ? new Date(book.startDate).toLocaleDateString() : 'N/A'}
                             </Text>
                         </View>
+                        <Divider style={{ width: 1, height: '100%' }} />
                         <View style={styles.dateItem}>
-                            <Text variant="labelMedium" style={{ color: theme.colors.outline }}>Target Date</Text>
-                            <Text variant="bodyMedium" style={{ fontWeight: 'bold' }}>
-                                {new Date(book.targetEndDate).toLocaleDateString()}
+                            <Text variant="labelSmall" style={{ color: theme.colors.outline }}>Target Date</Text>
+                            <Text variant="bodySmall" style={{ fontWeight: 'bold' }}>
+                                {targetDate ? targetDate.toLocaleDateString() : 'N/A'}
                             </Text>
                         </View>
                     </View>
                 </Surface>
 
-                {/* Progress Tracking */}
-                <Card style={styles.card}>
-                    <Card.Title title="Your Progress" left={(props) => <MaterialCommunityIcons {...props} name="progress-clock" size={24} />} />
-                    <Card.Content>
-                        <View style={styles.progressRow}>
-                            <Text variant="displaySmall" style={{ color: theme.colors.primary, fontWeight: 'bold' }}>
-                                {Math.round(progress * 100)}%
-                            </Text>
-                            <Text variant="bodyMedium" style={{ alignSelf: 'center', marginBottom: 6 }}>
-                                {book.unitsCompleted} of {book.totalUnits} chapters
-                            </Text>
+                {/* Progress Tracking (Compact) */}
+                <Surface style={styles.card} elevation={2}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                            <MaterialCommunityIcons name="progress-clock" size={20} color={theme.colors.primary} />
+                            <Text variant="titleMedium" style={{ color: theme.colors.primary, fontWeight: 'bold' }}>Progress</Text>
                         </View>
-                        <ProgressBar progress={progress} color={theme.colors.primary} style={styles.progressBar} />
-
-                        <View style={styles.controls}>
-                            <Button
-                                mode="outlined"
+                        <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.secondaryContainer, borderRadius: 20 }}>
+                            <IconButton
+                                icon="minus"
+                                size={18}
                                 onPress={() => updateProgress(Math.max(0, book.unitsCompleted - 1))}
-                                style={styles.controlBtn}
-                            >
-                                -1 Chapter
-                            </Button>
-                            <Button
-                                mode="contained"
+                                iconColor={theme.colors.onSecondaryContainer}
+                                style={{ margin: 0 }}
+                            />
+                            <Text variant="labelLarge" style={{ color: theme.colors.onSecondaryContainer, fontWeight: 'bold', paddingHorizontal: 4 }}>
+                                {book.unitsCompleted} / {book.totalUnits} ch
+                            </Text>
+                            <IconButton
+                                icon="plus"
+                                size={18}
                                 onPress={() => updateProgress(Math.min(book.totalUnits, book.unitsCompleted + 1))}
-                                style={styles.controlBtn}
-                            >
-                                +1 Chapter
-                            </Button>
+                                iconColor={theme.colors.onSecondaryContainer}
+                                style={{ margin: 0 }}
+                            />
                         </View>
-                    </Card.Content>
-                </Card>
+                    </View>
+                    <ProgressBar
+                        progress={progress}
+                        color={theme.colors.primary}
+                        style={{ height: 8, borderRadius: 4, backgroundColor: theme.colors.outlineVariant || 'rgba(0,0,0,0.1)' }}
+                    />
+                </Surface>
 
-                {/* Digital Reading - shown if book available on Gutenberg */}
-                {gutenbergTextUrl && (
-                    <Card style={[styles.card, { borderColor: theme.colors.primary, borderWidth: 1.5 }]}>
-                        <Card.Content>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8, gap: 8 }}>
-                                <MaterialCommunityIcons name="book-open-variant" size={24} color={theme.colors.primary} />
-                                <Text variant="titleMedium" style={{ color: theme.colors.primary, fontWeight: 'bold' }}>
-                                    Digital Version Available
+                {/* Digital Reading */}
+                {gutenbergTextUrl ? (
+                    <Surface style={[styles.card, { backgroundColor: theme.colors.primaryContainer, borderColor: 'transparent' }]} elevation={0}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                <MaterialCommunityIcons name="book-open-variant" size={20} color={theme.colors.onPrimaryContainer} />
+                                <Text variant="titleSmall" style={{ color: theme.colors.onPrimaryContainer, fontWeight: 'bold' }}>
+                                    {gutenbergTextUrl === 'local' ? 'Uploaded Document Ready' : 'Digital Version Available'}
                                 </Text>
                             </View>
-                            <Text variant="bodySmall" style={{ color: theme.colors.onSurfaceVariant, marginBottom: 12 }}>
-                                This book is available in full from Project Gutenberg. Read chapter by chapter with text-to-speech.
-                            </Text>
-                            <Button
-                                mode="contained"
-                                icon="book-open-page-variant"
-                                onPress={() => router.push({
-                                    pathname: '/book/reader',
-                                    params: {
-                                        bookId: id as string,
-                                        bookTitle: book.title,
-                                        gutenbergTextUrl: encodeURIComponent(gutenbergTextUrl),
-                                    }
-                                })}
-                                contentStyle={{ height: 44 }}
-                            >
-                                Read Digitally
-                            </Button>
-                        </Card.Content>
-                    </Card>
+                        </View>
+                        <Button
+                            mode="contained"
+                            icon="book-open-page-variant"
+                            onPress={() => router.push({
+                                pathname: '/book/reader',
+                                params: {
+                                    bookId: id as string,
+                                    bookTitle: book.title,
+                                    gutenbergTextUrl: encodeURIComponent(gutenbergTextUrl),
+                                }
+                            })}
+                        >
+                            Read Digitally
+                        </Button>
+                    </Surface>
+                ) : (
+                    <Surface style={[styles.card, { backgroundColor: theme.colors.surfaceVariant, borderColor: 'transparent', padding: 16, marginBottom: 16 }]} elevation={0}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                <MaterialCommunityIcons name="file-document-outline" size={20} color={theme.colors.onSurfaceVariant} />
+                                <Text variant="titleSmall" style={{ color: theme.colors.onSurfaceVariant, fontWeight: 'bold' }}>
+                                    Offline Digital Edition
+                                </Text>
+                            </View>
+                        </View>
+                        <Text variant="bodySmall" style={{ color: theme.colors.outline, marginBottom: 12 }}>
+                            Upload an eBook or raw text file (.txt/pdf) to read securely and privately inside the app.
+                        </Text>
+                        <Button
+                            mode="contained-tonal"
+                            icon="upload"
+                            loading={isUploading}
+                            disabled={isUploading}
+                            onPress={handleUploadBook}
+                        >
+                            Upload Document
+                        </Button>
+                    </Surface>
                 )}
 
                 {/* Reading Assistant */}
-                <Card style={styles.card}>
-                    <Card.Title title="Reading Assistant" left={(props) => <MaterialCommunityIcons {...props} name="text-recognition" size={24} />} />
-                    <Card.Content>
-                        <Text variant="bodyMedium" style={styles.helperText}>
-                            {gutenbergTextUrl
-                                ? 'Scan additional pages or notes to supplement your digital reading.'
-                                : 'Scan pages to extract text. You can scan multiple pages to append them here.'}
-                        </Text>
+                <Surface style={styles.card} elevation={2}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 8 }}>
+                        <MaterialCommunityIcons name="text-recognition" size={20} color={theme.colors.primary} />
+                        <Text variant="titleMedium" style={{ color: theme.colors.primary, fontWeight: 'bold' }}>Reading Assistant</Text>
+                    </View>
+                    <Text variant="bodySmall" style={styles.helperText}>
+                        {gutenbergTextUrl
+                            ? 'Scan pages or notes to supplement your digital reading.'
+                            : 'Scan physical pages to extract text and read aloud.'}
+                    </Text>
 
-                        <View style={styles.actionRow}>
-                            <Button
-                                mode="contained-tonal"
-                                icon="camera"
-                                onPress={handleScan}
-                                loading={isProcessing}
-                                compact
-                            >
-                                Scan Page
-                            </Button>
-                            <Button
-                                mode="text"
-                                icon={isSpeaking ? "stop" : "volume-high"}
-                                onPress={handleSpeak}
-                                compact
-                                disabled={!scannedText}
-                            >
-                                {isSpeaking ? "Stop" : "Read Aloud"}
-                            </Button>
-                            <Button
-                                mode="text"
-                                icon="content-copy"
-                                onPress={() => setScannedText('')}
-                                compact
-                                disabled={!scannedText}
-                            >
-                                Clear
-                            </Button>
+                    <View style={styles.actionRow}>
+                        <Button
+                            mode="contained-tonal"
+                            icon="camera"
+                            onPress={handleScan}
+                            loading={isProcessing}
+                            compact
+                        >
+                            Scan Page
+                        </Button>
+                        <Button
+                            mode="text"
+                            icon={isSpeaking ? "stop" : "volume-high"}
+                            onPress={handleSpeak}
+                            compact
+                            disabled={!scannedText}
+                        >
+                            {isSpeaking ? "Stop" : "Read Aloud"}
+                        </Button>
+                        <Button
+                            mode="text"
+                            icon="content-copy"
+                            onPress={() => setScannedText('')}
+                            compact
+                            disabled={!scannedText}
+                        >
+                            Clear
+                        </Button>
+                    </View>
+
+                    {scannedText ? (
+                        <TextInput
+                            mode="flat"
+                            multiline
+                            value={scannedText}
+                            onChangeText={setScannedText}
+                            style={styles.textArea}
+                            placeholder="Scanned text will appear here..."
+                        />
+                    ) : (
+                        <View style={styles.emptyState}>
+                            <Text style={{ color: theme.colors.outline }}>No text scanned yet.</Text>
                         </View>
+                    )}
+                </Surface>
 
-                        {scannedText ? (
-                            <TextInput
-                                mode="flat"
-                                multiline
-                                value={scannedText}
-                                onChangeText={setScannedText}
-                                style={styles.textArea}
-                                placeholder="Scanned text will appear here..."
-                            />
-                        ) : (
-                            <View style={styles.emptyState}>
-                                <Text style={{ color: theme.colors.outline }}>No text scanned yet.</Text>
-                            </View>
-                        )}
-                    </Card.Content>
-                </Card>
-
-            </ScrollView >
-        </SafeAreaView >
+            </ScrollView>
+        </SafeAreaView>
     );
 }
 
@@ -444,6 +492,7 @@ const styles = StyleSheet.create({
     },
     card: {
         borderRadius: 16,
+        padding: 16,
         marginBottom: 8,
     },
     progressRow: {
